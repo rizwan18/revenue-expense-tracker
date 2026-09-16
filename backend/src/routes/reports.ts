@@ -43,7 +43,7 @@ router.get(
       calc.propertyIncome(householdId, fy.id),
       calc.investmentIncome(householdId, fy.id),
       calc.dividendIncome(householdId, fy.id),
-      calc.realisedCapitalGains(householdId, fy.id),
+      calc.totalRealisedCapitalGains(householdId, fy.id),
       prisma.household.findUnique({ where: { id: householdId } }),
     ]);
     res.json({
@@ -142,7 +142,7 @@ router.get(
       calc.investmentIncome(householdId, fy.id),
       calc.dividendIncome(householdId, fy.id),
       calc.frankingCredits(householdId, fy.id),
-      calc.realisedCapitalGains(householdId, fy.id),
+      calc.totalRealisedCapitalGains(householdId, fy.id),
     ]);
 
     const potentialExpenses = await prisma.transaction.findMany({

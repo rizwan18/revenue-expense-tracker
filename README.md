@@ -8,6 +8,7 @@ A simple Australian personal finance, investment and tax-year organiser for reta
 - **Money** — record income and expenses against sensible Australian categories (council rates, land tax, body corporate, franking credits, etc).
 - **Properties** — track one or more investment properties: rent, expenses, net rental income, estimated equity and rental yield.
 - **Investments** — shares, ETFs, managed funds, term deposits and more, with buy/sell history, cost base, unrealised/realised gain-loss, and dividend/franking-credit tracking.
+- **Capital gains** — disposals from your buy/sell history are calculated automatically; disposals for anything not tracked that way (a private sale, a collectible, a holding from before you started using this app) can be recorded manually and are persisted alongside the automatic ones, feeding into the same dashboard figures and reports.
 - **Bills & Reminders** — recurring bills with automatic due-date rollover and reminders (snooze, complete, dismiss).
 - **Reports** — financial year, tax information summary, property and investment reports, with CSV export for your accountant.
 - **Easy View** — a larger-text, simplified mode for anyone who prefers less on the screen.
@@ -115,8 +116,7 @@ npm run dev:frontend   # http://localhost:5173 (proxies /api to the backend)
 npm run test:backend
 ```
 
-Current coverage focuses on the two areas correctness matters most: the Australian financial-year engine (30 June/1 July boundary at the second, leap years, timezone handling, FY id parsing/formatting — 18 tests) and bill recurrence date advancement (5 tests). See `backend/src/tests/`.
-
+Current coverage focuses on the areas correctness matters most, all as dependency-free pure-function unit tests: the Australian financial-year engine (30 June/1 July boundary at the second, leap years, timezone handling, FY id parsing/formatting — 18 tests), bill recurrence date advancement (5 tests), and manual capital gains disposal math — cost base, proceeds, gain/loss, ownership-percentage splitting for joint ownership, and holding-period calculation (5 tests). 28 tests total. See `backend/src/tests/`.
 **Recommended next testing steps** (not yet included, to keep this build focused): integration tests against a real database (Vitest + a test Postgres/SQLite instance), React Testing Library component tests, and Playwright end-to-end tests covering the full "create account → add property → generate report" flow from section 33 of the product brief.
 
 ## Production build
@@ -145,7 +145,12 @@ Serve `frontend/dist` from any static host (or behind the same reverse proxy as 
 
 ## A note on this sandbox's limitations
 
-This project was built and type-checked in a network-restricted sandbox that cannot reach `binaries.prisma.sh` (Prisma's engine CDN), so live database migrations and the running server could not be verified end-to-end in that environment — only via `tsc` type-checking and dependency-free unit tests. This resolves itself automatically on any machine with normal internet access; there is nothing unusual about this project's Prisma setup.
+This project was built and type-checked in a network-restricted sandbox that cannot reach `binaries.prisma.sh` (Prisma's engine CDN). Two consequences:
+
+1. Live database migrations and the running server could not be verified end-to-end in that environment.
+2. Because `prisma generate` never completes successfully, `@prisma/client` falls back to a minimal stub where `PrismaClient` is typed as `any`. This means `tsc` passing on Prisma-touching route files confirms the code is syntactically valid TypeScript, but does **not** confirm real Prisma type safety (e.g. a typo'd field name on a `prisma.investment.findMany({...})` call would not be caught here). The parts of the codebase that don't touch Prisma — the financial-year engine, bill recurrence, and capital gains math — have no such caveat: they're pure functions with dependency-free unit tests that genuinely pass.
+
+Both resolve automatically on any machine with normal internet access (`npx prisma generate` there produces a fully-typed client); there is nothing unusual about this project's Prisma setup. Worth running `npx tsc --noEmit` again yourself after your first real `prisma generate`, just to catch anything this sandbox couldn't.
 
 ## Important disclaimer
 

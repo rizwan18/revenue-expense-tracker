@@ -35,6 +35,7 @@ model Household {
   bills         Bill[]
   reminders     Reminder[]
   documents     Document[]
+  capitalGainDisposals CapitalGainDisposal[]
 }
 
 model User {
@@ -204,6 +205,7 @@ model Investment {
   dividends              Dividend[]
   transactions           Transaction[]
   documents              Document[]
+  capitalGainDisposals   CapitalGainDisposal[]
 
   @@index([householdId])
 }
@@ -245,6 +247,43 @@ model Dividend {
 
   documents Document[]
 
+  @@index([investmentId])
+  @@index([financialYear])
+}
+
+/**
+ * A manually recorded capital gains disposal — for assets not tracked via
+ * InvestmentTransaction buy/sell rows (e.g. a private sale, a collectible,
+ * or a holding bought before you started using this app). Persisted so it
+ * shows up in the Capital Gains report and tax summary alongside disposals
+ * calculated automatically from buy/sell history.
+ */
+model CapitalGainDisposal {
+  id                  String   @id @default(cuid())
+  householdId         String
+  household           Household @relation(fields: [householdId], references: [id])
+  investmentId        String
+  investment          Investment @relation(fields: [investmentId], references: [id])
+  purchaseDate        DateTime
+  purchasePrice       Float
+  purchaseCosts       Float    @default(0)
+  saleDate            DateTime
+  salePrice           Float
+  saleCosts           Float    @default(0)
+  quantity            Float
+  ownershipPercentage Float    @default(100)
+  costBase            Float
+  proceeds            Float
+  grossGainLoss       Float
+  holdingPeriodDays   Int
+  financialYear       String
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  documents Document[]
+
+  @@index([householdId])
   @@index([investmentId])
   @@index([financialYear])
 }
@@ -319,6 +358,8 @@ model Document {
   investment    Investment? @relation(fields: [investmentId], references: [id])
   dividendId    String?
   dividend      Dividend? @relation(fields: [dividendId], references: [id])
+  capitalGainDisposalId String?
+  capitalGainDisposal   CapitalGainDisposal? @relation(fields: [capitalGainDisposalId], references: [id])
   createdAt     DateTime @default(now())
 
   @@index([householdId])

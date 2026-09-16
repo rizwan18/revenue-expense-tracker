@@ -38,7 +38,7 @@ router.get(
       calc.propertyExpenses(householdId, fy.id),
       calc.dividendIncome(householdId, fy.id),
       calc.investmentIncome(householdId, fy.id),
-      calc.realisedCapitalGains(householdId, fy.id),
+      calc.totalRealisedCapitalGains(householdId, fy.id),
       calc.portfolioValue(householdId),
       calc.totalLoanBalance(householdId),
       calc.upcomingBills(householdId, 30, 10),

@@ -171,3 +171,23 @@ export interface Reminder {
   status: "PENDING" | "SNOOZED" | "COMPLETE" | "DISABLED";
   bill?: { id: string; name: string; property?: { name: string } | null } | null;
 }
+
+export interface CapitalGainDisposal {
+  id: string;
+  source: "automatic" | "manual";
+  investmentId: string;
+  investmentName: string;
+  ticker: string | null;
+  saleDate: string;
+  quantity: number;
+  salePrice: number;
+  saleCosts: number;
+  proceeds: number;
+  costBase: number;
+  grossGainLoss: number;
+  financialYear: string;
+  holdingPeriodDays: number | null;
+  eligibleForDiscountInformationalOnly: boolean | null;
+  notes: string | null;
+  hasDocuments: boolean;
+}

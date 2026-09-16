@@ -41,7 +41,7 @@ router.post(
     if (!req.householdId) throw new FriendlyError("Please finish setting up your household first.", 400);
     if (!req.file) throw new FriendlyError("Please choose a file to upload.");
 
-    const { transactionId, propertyId, investmentId, dividendId } = req.body as Record<string, string | undefined>;
+    const { transactionId, propertyId, investmentId, dividendId, capitalGainDisposalId } = req.body as Record<string, string | undefined>;
 
     // Files are user-scoped: served back only via the authenticated download
     // route below, never a raw static path, so another household can never
@@ -56,6 +56,7 @@ router.post(
         propertyId: propertyId || null,
         investmentId: investmentId || null,
         dividendId: dividendId || null,
+        capitalGainDisposalId: capitalGainDisposalId || null,
       },
     });
     res.status(201).json(document);

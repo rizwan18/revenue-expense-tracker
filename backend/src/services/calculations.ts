@@ -131,6 +131,29 @@ export async function realisedCapitalGains(householdId: string, financialYear: s
   return { gains, losses, net: gains - losses };
 }
 
+/**
+ * Adds persisted manual disposals (see CapitalGainDisposal / the
+ * capital-gains route) on top of realisedCapitalGains' automatic
+ * buy/sell-derived figure, so every screen that shows capital gains
+ * (dashboard, financial-year report, tax summary) reflects both sources
+ * consistently.
+ */
+export async function totalRealisedCapitalGains(householdId: string, financialYear: string): Promise<{ gains: number; losses: number; net: number }> {
+  const [automatic, manualRecords] = await Promise.all([
+    realisedCapitalGains(householdId, financialYear),
+    prisma.capitalGainDisposal.findMany({ where: { householdId, financialYear }, select: { grossGainLoss: true } }),
+  ]);
+
+  let gains = automatic.gains;
+  let losses = automatic.losses;
+  for (const d of manualRecords as { grossGainLoss: number }[]) {
+    if (d.grossGainLoss >= 0) gains += d.grossGainLoss;
+    else losses += -d.grossGainLoss;
+  }
+
+  return { gains, losses, net: gains - losses };
+}
+
 export async function portfolioValue(householdId: string): Promise<{ properties: number; shares: number; other: number; total: number }> {
   const properties = await prisma.property.findMany({ where: { householdId } });
   const propertiesValue = properties.reduce((sum: number, p: (typeof properties)[number]) => sum + (p.currentEstimatedValue ?? 0), 0);

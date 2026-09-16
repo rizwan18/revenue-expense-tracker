@@ -1,16 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useFinancialYear } from "../context/FinancialYearContext";
 import { api } from "../api/client";
-import { Button, Card, SectionHeading } from "../components/ui";
-import { formatCurrency, formatCurrencySigned } from "../lib/format";
+import type { CapitalGainDisposal } from "../api/types";
+import { Button, Card, EmptyState, SectionHeading } from "../components/ui";
+import { Modal } from "../components/Modal";
+import { ManualCapitalGainForm } from "../components/ManualCapitalGainForm";
+import { formatCurrency, formatCurrencySigned, formatDate } from "../lib/format";
 
-type ReportKind = "financial-year" | "tax-summary" | "property" | "investment";
+type ReportKind = "financial-year" | "tax-summary" | "property" | "investment" | "capital-gains";
 
 const TABS: Array<{ id: ReportKind; label: string }> = [
   { id: "financial-year", label: "Financial year" },
   { id: "tax-summary", label: "Tax summary" },
   { id: "property", label: "Property" },
   { id: "investment", label: "Investment" },
+  { id: "capital-gains", label: "Capital gains" },
 ];
 
 export default function ReportsPage() {
@@ -20,6 +24,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (tab === "capital-gains") return; // has its own self-contained component below
     setLoading(true);
     api
       .get<Record<string, unknown>>(`/reports/${tab}?financialYear=${financialYearId}`)
@@ -41,7 +46,7 @@ export default function ReportsPage() {
     <div className="space-y-6">
       <SectionHeading title="Reports" subtitle="Professional summaries you can share with your accountant." />
 
-      <div className="flex rounded-xl border border-[var(--color-line)] p-1 w-fit">
+      <div className="flex flex-wrap rounded-xl border border-[var(--color-line)] p-1 w-fit">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -55,7 +60,9 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {loading || !data ? (
+      {tab === "capital-gains" ? (
+        <CapitalGainsReport />
+      ) : loading || !data ? (
         <p className="text-[var(--color-ink-soft)]">Loading…</p>
       ) : (
         <>
@@ -64,6 +71,117 @@ export default function ReportsPage() {
           {tab === "property" && <PropertyReport data={data} />}
           {tab === "investment" && <InvestmentReport data={data} />}
         </>
+      )}
+    </div>
+  );
+}
+
+function CapitalGainsReport() {
+  const { financialYearId } = useFinancialYear();
+  const [items, setItems] = useState<CapitalGainDisposal[]>([]);
+  const [totals, setTotals] = useState<{ gains: number; losses: number; net: number } | null>(null);
+  const [disclaimer, setDisclaimer] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api
+      .get<{ items: CapitalGainDisposal[]; totals: { gains: number; losses: number; net: number }; disclaimer: string }>(
+        `/capital-gains?financialYear=${financialYearId}`
+      )
+      .then((res) => {
+        setItems(res.items);
+        setTotals(res.totals);
+        setDisclaimer(res.disclaimer);
+      })
+      .finally(() => setLoading(false));
+  }, [financialYearId]);
+
+  useEffect(load, [load]);
+
+  async function handleDeleteManual(id: string) {
+    if (!confirm("Remove this disposal record? This can't be undone.")) return;
+    await api.delete(`/capital-gains/manual/${id}`);
+    load();
+  }
+
+  if (loading) return <p className="text-[var(--color-ink-soft)]">Loading…</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs bg-[var(--color-ochre-tint)] text-[#7a4d1a] rounded-lg px-3 py-2 flex-1 mr-4">{disclaimer}</p>
+        <Button size="sm" onClick={() => setShowForm(true)}>
+          + Add manual disposal
+        </Button>
+      </div>
+
+      {totals && (
+        <div className="grid grid-cols-3 gap-3">
+          <Card>
+            <p className="text-sm text-[var(--color-ink-soft)]">Gains</p>
+            <p className="font-display text-xl font-semibold text-[var(--color-eucalyptus)]">{formatCurrency(totals.gains)}</p>
+          </Card>
+          <Card>
+            <p className="text-sm text-[var(--color-ink-soft)]">Losses</p>
+            <p className="font-display text-xl font-semibold text-[var(--color-brick)]">{formatCurrency(totals.losses)}</p>
+          </Card>
+          <Card>
+            <p className="text-sm text-[var(--color-ink-soft)]">Net</p>
+            <p className="font-display text-xl font-semibold">{formatCurrencySigned(totals.net)}</p>
+          </Card>
+        </div>
+      )}
+
+      {items.length === 0 ? (
+        <EmptyState
+          title="No disposals this financial year"
+          description="Sales recorded against your investments will show up here automatically, or add one manually for a sale that isn't tracked as a buy/sell transaction."
+          action={<Button onClick={() => setShowForm(true)}>Add manual disposal</Button>}
+        />
+      ) : (
+        <Card className="p-0 overflow-hidden">
+          <ul className="divide-y divide-[var(--color-line)]">
+            {items.map((d) => (
+              <li key={`${d.source}-${d.id}`} className="flex items-center justify-between px-5 py-3 gap-4">
+                <div className="min-w-0">
+                  <p className="font-medium text-[var(--color-ink)] truncate">
+                    {d.investmentName} {d.ticker ? `(${d.ticker})` : ""}
+                  </p>
+                  <p className="text-xs text-[var(--color-ink-soft)]">
+                    Sold {formatDate(d.saleDate)} · {d.quantity} units · {d.source === "manual" ? "Manually recorded" : "From buy/sell history"}
+                    {d.holdingPeriodDays !== null ? ` · Held ${d.holdingPeriodDays} days` : ""}
+                    {d.hasDocuments ? " · Document attached" : ""}
+                  </p>
+                  {d.notes && <p className="text-xs text-[var(--color-ink-soft)] mt-0.5">{d.notes}</p>}
+                </div>
+                <div className="text-right shrink-0">
+                  <p className={`font-medium ${d.grossGainLoss >= 0 ? "text-[var(--color-eucalyptus)]" : "text-[var(--color-brick)]"}`}>
+                    {formatCurrencySigned(d.grossGainLoss)}
+                  </p>
+                  {d.source === "manual" && (
+                    <button onClick={() => handleDeleteManual(d.id)} className="text-xs text-[var(--color-brick)] hover:underline">
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {showForm && (
+        <Modal title="Add a manual capital gains disposal" onClose={() => setShowForm(false)}>
+          <ManualCapitalGainForm
+            onCancel={() => setShowForm(false)}
+            onSaved={() => {
+              setShowForm(false);
+              load();
+            }}
+          />
+        </Modal>
       )}
     </div>
   );
