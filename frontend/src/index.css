@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  /* Colour tokens — a calm, Australian-landscape palette: deep eucalyptus
+     as the primary brand colour, warm ochre for attention, muted brick for
+     alerts/negative figures, soft paper background. Chosen deliberately to
+     avoid the generic "cream + terracotta" or "dark + neon" AI defaults. */
+  --color-paper: #faf8f3;
+  --color-paper-dim: #f2efe7;
+  --color-ink: #1c2b27;
+  --color-ink-soft: #4b5a55;
+  --color-eucalyptus: #1f4d3d;
+  --color-eucalyptus-dark: #163a2e;
+  --color-eucalyptus-tint: #dfeae3;
+  --color-ochre: #c97a2b;
+  --color-ochre-tint: #f6e6d2;
+  --color-brick: #a6432b;
+  --color-brick-tint: #f5e0da;
+  --color-sky: #3d6b85;
+  --color-sky-tint: #dde9ee;
+  --color-line: #e2ddd0;
+
+  --font-display: "Source Serif 4", Georgia, serif;
+  --font-sans: "Public Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  background-color: var(--color-paper);
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background-color: var(--color-paper);
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+}
+
+/* Visible focus states everywhere — important for keyboard users and the
+   over-65 audience this app is built for. */
+:focus-visible {
+  outline: 3px solid var(--color-sky);
+  outline-offset: 2px;
+}
+
+/* Easy View mode: bigger type, bigger targets, nothing else changes. */
+.easy-view {
+  font-size: 1.15rem;
+}
+.easy-view button, .easy-view a, .easy-view input, .easy-view select {
+  min-height: 3rem;
+}

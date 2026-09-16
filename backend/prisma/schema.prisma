@@ -1,0 +1,337 @@
+// Revenue Expense Tracker — database schema
+//
+// Dev/demo uses SQLite so the app runs without any external services.
+// The schema avoids SQLite-only features (native enums, arrays) so switching
+// `provider = "sqlite"` to `provider = "postgresql"` (and pointing DATABASE_URL
+// at a real Postgres instance) is a drop-in change for production.
+// String "enum-like" fields are validated in the application layer (see
+// src/lib/constants.ts) rather than as native Prisma enums.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// People & households
+// ---------------------------------------------------------------------------
+
+model Household {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members       User[]
+  accounts      Account[]
+  categories    Category[]
+  transactions  Transaction[]
+  properties    Property[]
+  investments   Investment[]
+  bills         Bill[]
+  reminders     Reminder[]
+  documents     Document[]
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  passwordHash    String
+  fullName        String
+  householdId     String?
+  household       Household? @relation(fields: [householdId], references: [id])
+  householdRole   String   @default("PRIMARY") // PRIMARY | PARTNER
+  easyViewEnabled Boolean  @default(false)
+  timezone        String   @default("Australia/Melbourne")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  transactions       Transaction[]
+  propertyOwnerships PropertyOwnership[]
+  notifications      Notification[]
+  passwordResets     PasswordResetToken[]
+
+  @@index([householdId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Money: accounts, categories, transactions
+// ---------------------------------------------------------------------------
+
+model Account {
+  id          String   @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id])
+  name        String
+  type        String   // BANK | OFFSET | CREDIT_CARD | CASH | OTHER
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  transactions Transaction[]
+  bills        Bill[]
+
+  @@index([householdId])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  direction   String   // INCOME | EXPENSE
+  isCustom    Boolean  @default(false)
+  householdId String?
+  household   Household? @relation(fields: [householdId], references: [id])
+  createdAt   DateTime @default(now())
+
+  transactions Transaction[]
+  bills        Bill[]
+
+  @@index([householdId])
+}
+
+model Transaction {
+  id                   String   @id @default(cuid())
+  householdId          String
+  household            Household @relation(fields: [householdId], references: [id])
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id])
+  date                 DateTime
+  description          String
+  amount               Float    // always positive; direction determines sign
+  direction            String   // INCOME | EXPENSE
+  categoryId           String?
+  category             Category? @relation(fields: [categoryId], references: [id])
+  accountId            String?
+  account              Account? @relation(fields: [accountId], references: [id])
+  propertyId           String?
+  property             Property? @relation(fields: [propertyId], references: [id])
+  investmentId         String?
+  investment           Investment? @relation(fields: [investmentId], references: [id])
+  notes                String?
+  isRecurring          Boolean  @default(false)
+  recurrenceFrequency  String?  // WEEKLY | FORTNIGHTLY | MONTHLY | QUARTERLY | HALF_YEARLY | ANNUALLY | CUSTOM
+  potentialTaxCategory String?  // suggestion only — never a determination
+  financialYear        String   // e.g. "2026-27"
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  documents Document[]
+
+  @@index([householdId])
+  @@index([userId])
+  @@index([date])
+  @@index([financialYear])
+  @@index([categoryId])
+  @@index([propertyId])
+  @@index([investmentId])
+}
+
+// ---------------------------------------------------------------------------
+// Property investment
+// ---------------------------------------------------------------------------
+
+model Property {
+  id                     String   @id @default(cuid())
+  householdId            String
+  household              Household @relation(fields: [householdId], references: [id])
+  name                   String
+  address                String?
+  purchaseDate           DateTime?
+  purchasePrice          Float?
+  currentEstimatedValue  Float?
+  loanBalance            Float?
+  loanInterestRate       Float?
+  rentalAgent            String?
+  tenantName             String?
+  rentAmount             Float?
+  rentFrequency          String?  // WEEKLY | FORTNIGHTLY | MONTHLY
+  rentalStartDate        DateTime?
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  owners       PropertyOwnership[]
+  transactions Transaction[]
+  bills        Bill[]
+  documents    Document[]
+
+  @@index([householdId])
+}
+
+model PropertyOwnership {
+  id         String @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  percentage Float    // 0-100
+
+  @@unique([propertyId, userId])
+}
+
+// ---------------------------------------------------------------------------
+// Shares, ETFs & other investments
+// ---------------------------------------------------------------------------
+
+model Investment {
+  id          String   @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id])
+  name        String
+  ticker      String?
+  type        String   // SHARE | ETF | LIC | MANAGED_FUND | BOND | TERM_DEPOSIT | CRYPTO | P2P | PRIVATE | COLLECTIBLE | OTHER
+  notes       String?
+  currentValueOverride Float? // manual override for hard-to-price assets
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  investmentTransactions InvestmentTransaction[]
+  dividends              Dividend[]
+  transactions           Transaction[]
+  documents              Document[]
+
+  @@index([householdId])
+}
+
+model InvestmentTransaction {
+  id           String   @id @default(cuid())
+  investmentId String
+  investment   Investment @relation(fields: [investmentId], references: [id])
+  type         String   // BUY | SELL
+  date         DateTime
+  quantity     Float
+  pricePerUnit Float
+  brokerage    Float    @default(0)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([investmentId])
+  @@index([date])
+}
+
+model Dividend {
+  id              String   @id @default(cuid())
+  investmentId    String
+  investment      Investment @relation(fields: [investmentId], references: [id])
+  exDividendDate  DateTime?
+  paymentDate     DateTime?
+  grossAmount     Float
+  frankingCredit  Float    @default(0)
+  frankedAmount   Float    @default(0)
+  unfrankedAmount Float    @default(0)
+  taxWithheld     Float    @default(0)
+  netAmount       Float
+  status          String   @default("EXPECTED") // EXPECTED | RECEIVED
+  notes           String?
+  financialYear   String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  documents Document[]
+
+  @@index([investmentId])
+  @@index([financialYear])
+}
+
+// ---------------------------------------------------------------------------
+// Bills & reminders
+// ---------------------------------------------------------------------------
+
+model Bill {
+  id                 String   @id @default(cuid())
+  householdId        String
+  household          Household @relation(fields: [householdId], references: [id])
+  name               String
+  provider           String?
+  amount             Float
+  frequency          String   // WEEKLY | FORTNIGHTLY | MONTHLY | QUARTERLY | HALF_YEARLY | ANNUALLY | CUSTOM
+  nextDueDate        DateTime
+  accountId          String?
+  account            Account? @relation(fields: [accountId], references: [id])
+  categoryId         String?
+  category           Category? @relation(fields: [categoryId], references: [id])
+  propertyId         String?
+  property           Property? @relation(fields: [propertyId], references: [id])
+  autoRenew          Boolean  @default(false)
+  reminderDaysBefore Int      @default(7)
+  status             String   @default("UPCOMING") // UPCOMING | PAID | OVERDUE
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  reminders Reminder[]
+
+  @@index([householdId])
+  @@index([nextDueDate])
+}
+
+model Reminder {
+  id          String   @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id])
+  billId      String?
+  bill        Bill?    @relation(fields: [billId], references: [id])
+  dividendId  String?
+  title       String
+  dueDate     DateTime
+  daysBefore  Int
+  status      String   @default("PENDING") // PENDING | SNOOZED | COMPLETE | DISABLED
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([householdId])
+  @@index([dueDate])
+}
+
+// ---------------------------------------------------------------------------
+// Documents & notifications
+// ---------------------------------------------------------------------------
+
+model Document {
+  id            String   @id @default(cuid())
+  householdId   String
+  household     Household @relation(fields: [householdId], references: [id])
+  fileName      String
+  fileType      String
+  filePath      String
+  transactionId String?
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  propertyId    String?
+  property      Property? @relation(fields: [propertyId], references: [id])
+  investmentId  String?
+  investment    Investment? @relation(fields: [investmentId], references: [id])
+  dividendId    String?
+  dividend      Dividend? @relation(fields: [dividendId], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@index([householdId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

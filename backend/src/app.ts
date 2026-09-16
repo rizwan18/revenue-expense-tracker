@@ -1,0 +1,48 @@
+import express from "express";
+import cors from "cors";
+import authRoutes from "./routes/auth";
+import transactionRoutes from "./routes/transactions";
+import categoryRoutes from "./routes/categories";
+import accountRoutes from "./routes/accounts";
+import propertyRoutes from "./routes/properties";
+import investmentRoutes from "./routes/investments";
+import dividendRoutes from "./routes/dividends";
+import capitalGainsRoutes from "./routes/capitalGains";
+import billRoutes from "./routes/bills";
+import reminderRoutes from "./routes/reminders";
+import dashboardRoutes from "./routes/dashboard";
+import reportRoutes from "./routes/reports";
+import searchRoutes from "./routes/search";
+import documentRoutes from "./routes/documents";
+import { errorHandler } from "./middleware/errorHandler";
+
+export function createApp() {
+  const app = express();
+
+  app.use(cors());
+  app.use(express.json({ limit: "10mb" }));
+
+  app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
+
+  app.use("/api/auth", authRoutes);
+  app.use("/api/transactions", transactionRoutes);
+  app.use("/api/categories", categoryRoutes);
+  app.use("/api/accounts", accountRoutes);
+  app.use("/api/properties", propertyRoutes);
+  app.use("/api/investments", investmentRoutes);
+  app.use("/api/dividends", dividendRoutes);
+  app.use("/api/capital-gains", capitalGainsRoutes);
+  app.use("/api/bills", billRoutes);
+  app.use("/api/reminders", reminderRoutes);
+  app.use("/api/dashboard", dashboardRoutes);
+  app.use("/api/reports", reportRoutes);
+  app.use("/api/search", searchRoutes);
+  app.use("/api/documents", documentRoutes);
+
+  // 404 for unknown API routes, before the generic error handler.
+  app.use("/api", (_req, res) => res.status(404).json({ error: "We couldn't find what you were looking for." }));
+
+  app.use(errorHandler);
+
+  return app;
+}
