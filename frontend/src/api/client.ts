@@ -1,5 +1,11 @@
 const TOKEN_KEY = "ret_token";
 
+// In production the frontend and backend are separate Vercel projects on
+// different domains, so requests need an absolute base URL. In local dev,
+// this is left empty and Vite's dev server proxy (see vite.config.ts)
+// forwards relative /api/* requests to the backend instead.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") || "";
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -25,7 +31,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  const res = await fetch(`/api${path}`, { ...options, headers });
+  const res = await fetch(`${API_BASE_URL}/api${path}`, { ...options, headers });
 
   if (res.status === 204) return undefined as T;
 

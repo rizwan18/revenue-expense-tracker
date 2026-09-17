@@ -1,19 +1,30 @@
 // Revenue Expense Tracker — database schema
 //
-// Dev/demo uses SQLite so the app runs without any external services.
-// The schema avoids SQLite-only features (native enums, arrays) so switching
-// `provider = "sqlite"` to `provider = "postgresql"` (and pointing DATABASE_URL
-// at a real Postgres instance) is a drop-in change for production.
+// Production (Vercel): PostgreSQL, e.g. Neon (https://neon.tech) — Vercel's
+// recommended serverless-friendly Postgres provider. `url` should be Neon's
+// *pooled* connection string (via PgBouncer) since serverless functions can
+// open many concurrent short-lived connections; `directUrl` should be the
+// *unpooled* connection string, used only for running migrations.
+//
+// Local development: this same schema works with SQLite by temporarily
+// setting `provider = "sqlite"` and `url = env("DATABASE_URL")` (see
+// backend/.env.example) — no `directUrl` needed for SQLite.
+//
 // String "enum-like" fields are validated in the application layer (see
-// src/lib/constants.ts) rather than as native Prisma enums.
+// src/lib/constants.ts) rather than as native Prisma enums, which keeps the
+// schema portable between SQLite and PostgreSQL.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" covers local development; "rhel-openssl-3.0.x" is required for
+  // Vercel's Node.js serverless runtime (Amazon Linux 2023 + OpenSSL 3).
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------

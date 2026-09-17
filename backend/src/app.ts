@@ -19,7 +19,11 @@ import { errorHandler } from "./middleware/errorHandler";
 export function createApp() {
   const app = express();
 
-  app.use(cors());
+  // In production the frontend and backend are typically separate Vercel
+  // projects on different domains. Bearer-token auth (not cookies) means a
+  // wildcard origin carries no CSRF risk, but CORS_ORIGIN lets you lock it
+  // down to your actual frontend domain if you'd prefer.
+  app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
   app.use(express.json({ limit: "10mb" }));
 
   app.get("/api/health", (_req, res) => res.json({ status: "ok" }));

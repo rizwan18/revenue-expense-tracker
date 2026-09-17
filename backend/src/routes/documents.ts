@@ -1,7 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import path from "path";
-import fs from "fs";
+import { put, del } from "@vercel/blob";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 import { asyncHandler, FriendlyError } from "../middleware/errorHandler";
@@ -9,22 +8,13 @@ import { asyncHandler, FriendlyError } from "../middleware/errorHandler";
 const router = Router();
 router.use(requireAuth);
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, "..", "..", "uploads");
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
 const ALLOWED_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/jpg"]);
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const householdId = (req as AuthedRequest).householdId || "unknown";
-    const safeName = `${householdId}-${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-    cb(null, safeName);
-  },
-});
-
+// Vercel serverless functions have no persistent local disk — files are
+// buffered in memory (documents are capped at 15MB, so this is cheap) and
+// uploaded straight to Vercel Blob storage.
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_TYPES.has(file.mimetype)) {
@@ -43,15 +33,22 @@ router.post(
 
     const { transactionId, propertyId, investmentId, dividendId, capitalGainDisposalId } = req.body as Record<string, string | undefined>;
 
-    // Files are user-scoped: served back only via the authenticated download
-    // route below, never a raw static path, so another household can never
-    // guess a URL to someone else's receipt.
+    // Blob pathnames are namespaced by household and given a random suffix
+    // by Vercel Blob (addRandomSuffix defaults to true), so they aren't
+    // guessable — but the *only* URL the app ever hands back to a client is
+    // this authenticated download route below, never the raw blob URL, so
+    // one household can never be handed a link to another's receipt.
+    const blob = await put(`receipts/${req.householdId}/${Date.now()}-${req.file.originalname}`, req.file.buffer, {
+      access: "public",
+      contentType: req.file.mimetype,
+    });
+
     const document = await prisma.document.create({
       data: {
         householdId: req.householdId,
         fileName: req.file.originalname,
         fileType: req.file.mimetype,
-        filePath: req.file.filename,
+        filePath: blob.url,
         transactionId: transactionId || null,
         propertyId: propertyId || null,
         investmentId: investmentId || null,
@@ -68,9 +65,29 @@ router.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     const document = await prisma.document.findFirst({ where: { id: req.params.id, householdId: req.householdId ?? undefined } });
     if (!document) throw new FriendlyError("We couldn't find this document.", 404);
-    const filePath = path.join(UPLOAD_DIR, document.filePath);
-    if (!fs.existsSync(filePath)) throw new FriendlyError("This file is no longer available.", 404);
-    res.download(filePath, document.fileName);
+
+    // Fetch the blob server-side and stream it back rather than redirecting,
+    // so the browser only ever sees this authenticated app URL — never the
+    // underlying blob storage URL.
+    const blobResponse = await fetch(document.filePath);
+    if (!blobResponse.ok || !blobResponse.body) {
+      throw new FriendlyError("This file is no longer available.", 404);
+    }
+
+    res.setHeader("Content-Type", document.fileType);
+    res.setHeader("Content-Disposition", `attachment; filename="${document.fileName.replace(/"/g, "")}"`);
+
+    const reader = blobResponse.body.getReader();
+    const pump = async (): Promise<void> => {
+      const { done, value } = await reader.read();
+      if (done) {
+        res.end();
+        return;
+      }
+      res.write(value);
+      return pump();
+    };
+    await pump();
   })
 );
 
@@ -79,8 +96,10 @@ router.delete(
   asyncHandler(async (req: AuthedRequest, res) => {
     const document = await prisma.document.findFirst({ where: { id: req.params.id, householdId: req.householdId ?? undefined } });
     if (!document) throw new FriendlyError("We couldn't find this document.", 404);
-    const filePath = path.join(UPLOAD_DIR, document.filePath);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    await del(document.filePath).catch(() => {
+      // If the blob was already removed (or storage is briefly unavailable),
+      // don't block the user from clearing the orphaned database record.
+    });
     await prisma.document.delete({ where: { id: document.id } });
     res.json({ message: "Document removed." });
   })
