@@ -262,13 +262,11 @@ model Dividend {
   @@index([financialYear])
 }
 
-/**
- * A manually recorded capital gains disposal — for assets not tracked via
- * InvestmentTransaction buy/sell rows (e.g. a private sale, a collectible,
- * or a holding bought before you started using this app). Persisted so it
- * shows up in the Capital Gains report and tax summary alongside disposals
- * calculated automatically from buy/sell history.
- */
+/// A manually recorded capital gains disposal — for assets not tracked via
+/// InvestmentTransaction buy/sell rows (e.g. a private sale, a collectible,
+/// or a holding bought before you started using this app). Persisted so it
+/// shows up in the Capital Gains report and tax summary alongside disposals
+/// calculated automatically from buy/sell history.
 model CapitalGainDisposal {
   id                  String   @id @default(cuid())
   householdId         String

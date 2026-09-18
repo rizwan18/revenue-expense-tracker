@@ -4,7 +4,7 @@
   "private": true,
   "description": "Australian personal finance, investment and tax-year tracker for retail investors, property investors, retirees and pensioners.",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "workspaces": [
     "backend",
