@@ -10,9 +10,13 @@
  * file is a zero-config bridge between "one Express app" and "one Vercel
  * serverless function".
  *
+ * In the single-project layout this file lives at the repo root (Vercel only
+ * detects functions in a top-level `api/` folder) and imports the Express app
+ * from backend/src.
+ *
  * Locally, this file is never used — `npm run dev` runs src/server.ts
  * instead, which calls app.listen() directly.
  */
-import { createApp } from "../src/app";
+import { createApp } from "../backend/src/app";
 
 export default createApp();

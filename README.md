@@ -19,8 +19,11 @@ This app deliberately avoids automatically deciding what is tax-deductible. It o
 
 ```
 revenue-expense-tracker/
+├── api/         Vercel serverless entry point (wraps the Express app)
 ├── backend/     Node.js + TypeScript + Express REST API, Prisma ORM
-└── frontend/    React + TypeScript + Vite + Tailwind CSS
+├── frontend/    React + TypeScript + Vite + Tailwind CSS
+├── package.json npm workspaces root — one install, one `npm run dev`
+└── vercel.json  single-project Vercel config
 ```
 
 **Backend** (`backend/`)
@@ -53,72 +56,84 @@ revenue-expense-tracker/
 
 ## Installation
 
-Requires Node.js 20+.
+Requires Node.js 20+. The repo is a single npm-workspaces project, so there is **one** install for both the frontend and the backend:
 
-```bash
-git clone <this-repo>
-cd revenue-expense-tracker
-npm run install:all
+```
+git clone https://github.com/rizwan18/tracker.git
+cd tracker
+npm install        # installs everything and runs `prisma generate`
+```
+
+**Quick start**
+
+```
+cp backend/.env.example backend/.env    # then fill in DATABASE_URL, DIRECT_URL, JWT_SECRET
+npm run prisma:push                     # create the tables
+npm run prisma:seed                     # optional demo data
+npm run dev                             # API + frontend together
 ```
 
 ## Environment variables
 
-Copy the example files and adjust as needed:
+Only the backend needs an env file; the frontend needs none (it calls relative `/api/*` URLs):
 
-```bash
+```
 cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
 ```
 
-See `backend/.env.example` for the full list (`DATABASE_URL`, `JWT_SECRET`, `PORT`, `UPLOAD_DIR`). **Generate a real `JWT_SECRET` for anything beyond local development** — e.g. `openssl rand -base64 48`.
+See `backend/.env.example` for the full list (`DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `PORT`). **Generate a real `JWT_SECRET` for anything beyond local development** — e.g. `openssl rand -base64 48`.
 
 ## Database setup & migrations
 
 The schema defaults to PostgreSQL (matching production — see "Deploying to Vercel" below). For local development you have two options:
 
-**Option A — local Postgres or a free Neon dev branch (recommended, matches production exactly):**
-```bash
-cd backend
-# DATABASE_URL and DIRECT_URL can point at the same connection string
-# locally if you're not using a pooler.
-npx prisma migrate dev --name init
+**Option A — local Postgres or a free Neon dev branch (recommended, matches production exactly):** put the connection strings in `backend/.env` (`DATABASE_URL` and `DIRECT_URL` can be the same string if you're not using a pooler), then create the tables:
+
+```
+npm run prisma:push        # quickest: creates all tables from the schema
+# or, to create a versioned migration instead:
+npm run prisma:migrate -- --name init
 ```
 
-**Option B — SQLite (fastest to get running, zero external services):**
-Temporarily edit `backend/prisma/schema.prisma`:
-```prisma
+**Option B — SQLite (zero external services):** temporarily edit `backend/prisma/schema.prisma`:
+
+```
 datasource db {
   provider = "sqlite"   // was "postgresql"
   url      = env("DATABASE_URL")
 }
 ```
-and set `DATABASE_URL="file:./dev.db"` in `backend/.env` (no `DIRECT_URL` needed). Then run the same `npx prisma migrate dev --name init`. Don't commit this schema change — switch back to `postgresql` before deploying.
+
+and set `DATABASE_URL="file:./dev.db"` in `backend/.env` (no `DIRECT_URL` needed; delete the `directUrl` line too). Then run `npm run prisma:push`. Don't commit this schema change — switch back to `postgresql` before deploying.
 
 ## Seed data
 
 Realistic **fictional** Australian demo data (two properties, shares, ETFs, dividends, franking credits, household bills, upcoming reminders):
 
 ```bash
-npm run prisma:seed --prefix backend
+npm run prisma:seed
 ```
 
 Demo login: `demo@example.com` / `DemoPassword123!`
 
 ## Running the development servers
 
-In two terminals:
+One command starts both the API and the frontend:
 
-```bash
-npm run dev:backend    # http://localhost:4000
-npm run dev:frontend   # http://localhost:5173 (proxies /api to the backend)
+```
+npm run dev
+# API       http://localhost:4000
+# Frontend  http://localhost:5173  (open this one; it proxies /api to the API)
 ```
 
-Document uploads always go to Vercel Blob (even in local dev) — set `BLOB_READ_WRITE_TOKEN` in `backend/.env` if you want to test that flow locally (`vercel env pull` after linking the backend project is the easiest way to get one).
+Individual servers: `npm run dev:backend` and `npm run dev:frontend`.
+
+Document uploads always go to Vercel Blob (even in local dev) — set `BLOB_READ_WRITE_TOKEN` in `backend/.env` if you want to test that flow locally.
 
 ## Testing
 
 ```bash
-npm run test:backend
+npm test
 ```
 
 Current coverage focuses on the areas correctness matters most, all as dependency-free pure-function unit tests: the Australian financial-year engine (30 June/1 July boundary at the second, leap years, timezone handling, FY id parsing/formatting — 18 tests), bill recurrence date advancement (5 tests), and manual capital gains disposal math — cost base, proceeds, gain/loss, ownership-percentage splitting for joint ownership, and holding-period calculation (5 tests). 28 tests total. See `backend/src/tests/`.
@@ -126,68 +141,59 @@ Current coverage focuses on the areas correctness matters most, all as dependenc
 
 ## Deploying to Vercel
 
-The frontend and backend are deployed as **two separate Vercel projects** from this one repository (set each project's "Root Directory" accordingly). This is the standard pattern for a Vite SPA + a separately-hosted API on Vercel.
+The frontend and API deploy together as **one Vercel project** from the repository root: Vercel serves `frontend/dist` as static files and runs the Express app as a single serverless function (`api/[...path].ts`). Because both live on the same domain there is no CORS setup and no `VITE_API_BASE_URL` to configure.
 
 ### 1. Set up a production database (Neon Postgres)
 
-Vercel's serverless functions can't use SQLite (no persistent local disk), so production uses PostgreSQL. [Neon](https://neon.tech) is Vercel's recommended serverless-friendly Postgres provider (there's also a direct Vercel Postgres/Neon integration in the Vercel dashboard's Storage tab, which sets these env vars for you automatically).
+Vercel's serverless functions can't use SQLite (no persistent local disk), so production uses PostgreSQL. [Neon](https://neon.tech) is Vercel's recommended serverless-friendly Postgres provider (there's also a direct Neon integration in the Vercel dashboard's Storage tab, which sets these env vars for you automatically).
 
 1. Create a Neon project and database.
 2. Copy the **pooled** connection string (via PgBouncer) → this is `DATABASE_URL`.
-3. Copy the **unpooled/direct** connection string → this is `DIRECT_URL` (used only for migrations).
+3. Copy the **unpooled/direct** connection string → this is `DIRECT_URL` (used only for creating tables / migrations).
 
-### 2. Set up file storage (Vercel Blob)
+### 2. Create the tables (once)
 
-In the backend Vercel project → **Storage** tab → create a **Blob** store and connect it to the project. Vercel automatically injects `BLOB_READ_WRITE_TOKEN` — you don't need to set it by hand.
+From your own machine (Vercel's build step doesn't touch the database):
 
-### 3. Deploy the backend project
-
-Create a new Vercel project from this repo with:
-- **Root Directory**: `backend`
-- **Framework Preset**: Other (it's a plain serverless-functions project — `backend/api/[...path].ts` wraps the whole Express app as one function, see the comment in that file for how the routing lines up)
-- **Environment variables**: `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `CORS_ORIGIN` (set once you know the frontend's URL), `NODE_ENV=production`
-
-`postinstall: prisma generate` runs automatically on every install, so the Postgres-targeted Prisma Client is always built fresh for the deployment.
-
-**Run migrations once against the production database** (from your own machine, since Vercel's build step doesn't run migrations automatically):
-```bash
-cd backend
-DATABASE_URL="<your Neon pooled URL>" DIRECT_URL="<your Neon direct URL>" npx prisma migrate deploy
 ```
-Re-run this (or `prisma migrate deploy` in CI) after every schema change.
+cd backend
+DATABASE_URL="<your Neon pooled URL>" DIRECT_URL="<your Neon direct URL>" npx prisma db push
+```
 
-### 4. Deploy the frontend project
+`db push` creates every table from `prisma/schema.prisma`. Once you want versioned migrations, run `npm run prisma:migrate -- --name init` against a dev database, commit the generated `backend/prisma/migrations/` folder, and from then on use `npx prisma migrate deploy` for production.
 
-Create a second Vercel project from the same repo with:
-- **Root Directory**: `frontend`
-- **Framework Preset**: Vite (auto-detected)
-- **Environment variables**: `VITE_API_BASE_URL` = the backend project's URL (e.g. `https://revenue-expense-tracker-api.vercel.app`)
+### 3. Deploy the project
 
-`frontend/vercel.json` adds the SPA rewrite React Router needs so refreshing a deep link (e.g. `/properties/abc123`) doesn't 404.
+Create **one** Vercel project from this repo:
 
-### 5. Close the loop
+- **Root Directory**: leave as the repository root
+- **Framework Preset**: Other (the settings in the root `vercel.json` — install command, build command, output directory, SPA rewrite — are picked up automatically)
+- **Environment variables**: `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET`, `NODE_ENV=production`
+- **Storage**: in the project's **Storage** tab create a **Blob** store and connect it; Vercel injects `BLOB_READ_WRITE_TOKEN` automatically.
 
-Set the backend's `CORS_ORIGIN` env var to the frontend's actual Vercel URL and redeploy the backend (a wildcard `*` works fine to start, since auth is bearer-token based rather than cookie based, but locking it down is good practice once you have a stable frontend URL).
+`npm install` at the root runs `prisma generate` (via the root `postinstall`), so the Postgres-targeted Prisma Client is always built fresh for the deployment.
 
 ### What changed from local dev
 
-| | Local dev | Vercel production |
-|---|---|---|
-| Database | SQLite (`backend/prisma/dev.db`) | PostgreSQL (Neon) |
-| File uploads | Local disk (`UPLOAD_DIR`) | Vercel Blob |
-| Backend process | Long-running `node`/`tsx` process (`src/server.ts`) | Single serverless function per request (`api/[...path].ts`) |
-| Frontend → API | Vite dev-server proxy (relative `/api/*`) | Absolute URL via `VITE_API_BASE_URL` (separate domains) |
+|                 | Local dev                                           | Vercel production                                           |
+| --------------- | --------------------------------------------------- | ----------------------------------------------------------- |
+| Database        | Local Postgres / Neon dev branch (or SQLite)        | PostgreSQL (Neon)                                           |
+| File uploads    | Vercel Blob (`BLOB_READ_WRITE_TOKEN`)               | Vercel Blob                                                 |
+| Backend process | Long-running `tsx` process (`src/server.ts`)        | Single serverless function per request (`api/[...path].ts`) |
+| Frontend → API  | Vite dev-server proxy (relative `/api/*`)           | Same domain, relative `/api/*`                              |
 
-Cold starts are worth knowing about: the first request after idle will be slower (new Postgres connection + Prisma engine init). The Prisma Client singleton in `src/lib/prisma.ts` is reused across warm invocations of the same function instance, which helps.
+Cold starts are worth knowing about: the first request after idle will be slower (new Postgres connection + Prisma engine init). The Prisma Client singleton in `backend/src/lib/prisma.ts` is reused across warm invocations of the same function instance, which helps.
 
 ## Production build (self-hosted alternative)
 
-```bash
-npm run build:backend   # compiles to backend/dist
-npm run build:frontend  # builds static assets to frontend/dist
+The whole app runs as **one process on one port**: the Express server also serves the built frontend.
+
+```
+npm run build   # builds frontend/dist and compiles backend/dist
+npm start       # http://localhost:4000 — API at /api/*, frontend at /
 ```
 
-Serve `frontend/dist` from any static host (or behind the same reverse proxy as the API) and run `node backend/dist/server.js` for the API.
+Set `DATABASE_URL`, `DIRECT_URL`, `JWT_SECRET` and `NODE_ENV=production` in the environment (or `backend/.env`) first, and create the tables once with `npm run prisma:deploy` (or `npm run prisma:push` — see "Database setup").
 
 ## Deployment considerations
 

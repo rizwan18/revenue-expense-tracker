@@ -27,3 +27,9 @@ coverage/
 
 # Vite
 frontend/dist/
+
+# Env files in workspaces
+backend/.env
+frontend/.env
+!.env.example
+backend/dist/
