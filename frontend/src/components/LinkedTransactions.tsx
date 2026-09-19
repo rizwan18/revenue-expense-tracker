@@ -39,6 +39,9 @@ export function LinkedTransactions({
   reloadToken = 0,
   showQuickAdd = true,
   title = "Income & expenses",
+  quickAdd,
+  allowIncome = true,
+  emptyMessage,
 }: {
   scope: Scope;
   financialYearId: string;
@@ -47,6 +50,11 @@ export function LinkedTransactions({
   reloadToken?: number;
   showQuickAdd?: boolean;
   title?: string;
+  /** Replace the default one-tap shortcuts (e.g. costs of a principal place of residence). */
+  quickAdd?: { INCOME: string[]; EXPENSE: string[] };
+  /** Set false where income makes no sense (e.g. your own home). */
+  allowIncome?: boolean;
+  emptyMessage?: string;
 }) {
   const [items, setItems] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +92,7 @@ export function LinkedTransactions({
 
   const income = items.filter((t) => t.direction === "INCOME").reduce((sum, t) => sum + t.amount, 0);
   const expenses = items.filter((t) => t.direction === "EXPENSE").reduce((sum, t) => sum + t.amount, 0);
-  const quick = QUICK_ADD[scope.kind];
+  const quick = quickAdd ?? QUICK_ADD[scope.kind];
   const suggested = [...quick.INCOME, ...quick.EXPENSE];
 
   return (
@@ -94,9 +102,11 @@ export function LinkedTransactions({
         subtitle={`${items.length} ${items.length === 1 ? "entry" : "entries"} for the ${financialYearId} financial year`}
         action={
           <div className="flex gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setForm({ direction: "INCOME" })}>
-              + Add income
-            </Button>
+            {allowIncome && (
+              <Button size="sm" variant="secondary" onClick={() => setForm({ direction: "INCOME" })}>
+                + Add income
+              </Button>
+            )}
             <Button size="sm" onClick={() => setForm({ direction: "EXPENSE" })}>
               + Add expense
             </Button>
@@ -119,9 +129,10 @@ export function LinkedTransactions({
           <p className="p-5 text-sm text-[var(--color-ink-soft)]">Loading…</p>
         ) : items.length === 0 ? (
           <p className="p-5 text-sm text-[var(--color-ink-soft)]">
-            {scope.kind === "property"
+            {emptyMessage ??
+              (scope.kind === "property"
               ? "Nothing recorded yet for this financial year. Add rent received, council rates, water rates, maintenance and other costs using the buttons above."
-              : "Nothing recorded yet for this financial year. Add interest, distributions or fees using the buttons above."}
+              : "Nothing recorded yet for this financial year. Add interest, distributions or fees using the buttons above.")}
           </p>
         ) : (
           <>
@@ -197,6 +208,7 @@ export function LinkedTransactions({
 }
 
 function QuickRow({ label, names, tone, onPick }: { label: string; names: string[]; tone: "income" | "expense"; onPick: (name: string) => void }) {
+  if (names.length === 0) return null;
   const chip =
     tone === "income"
       ? "bg-[var(--color-eucalyptus-tint)] text-[var(--color-eucalyptus-dark)] hover:brightness-95"

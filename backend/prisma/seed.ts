@@ -77,6 +77,34 @@ async function main() {
     },
   });
 
+  // Principal place of residence (no rental income; shown in blue in the app)
+  const home = await prisma.property.create({
+    data: {
+      householdId: household.id,
+      name: "Family Home",
+      address: "27 Wattle Avenue, Ballarat VIC 3350",
+      propertyType: "PPR",
+      purchaseDate: new Date("2012-06-01"),
+      purchasePrice: 285000,
+      currentEstimatedValue: 610000,
+      loanBalance: 95000,
+      owners: { create: { userId: user.id, percentage: 100 } },
+    },
+  });
+  await prisma.transaction.create({
+    data: {
+      householdId: household.id,
+      userId: user.id,
+      date: new Date(),
+      description: "Home insurance — Wattle Ave",
+      amount: 1250,
+      direction: "EXPENSE",
+      categoryId: cat("Insurance"),
+      propertyId: home.id,
+      financialYear: getFinancialYearId(new Date()),
+    },
+  });
+
   // Rental income & expenses across the current and previous FY
   const now = new Date();
   const monthsBack = [0, 1, 2, 3, 4, 5, 6, 13];

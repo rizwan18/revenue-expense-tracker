@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BILL_FREQUENCIES, INVESTMENT_TYPES, INVESTMENT_TRANSACTION_TYPES, TRANSACTION_DIRECTIONS, DIVIDEND_STATUSES, RENT_FREQUENCIES } from "./constants";
+import { BILL_FREQUENCIES, INVESTMENT_TYPES, INVESTMENT_TRANSACTION_TYPES, TRANSACTION_DIRECTIONS, DIVIDEND_STATUSES, RENT_FREQUENCIES, PROPERTY_TYPES } from "./constants";
 
 export const registerSchema = z.object({
   email: z.string().email("Enter a valid email address."),
@@ -40,6 +40,8 @@ export const transactionSchema = z.object({
 export const propertySchema = z.object({
   name: z.string().min(1, "Please give this property a name."),
   address: z.string().optional().nullable(),
+  /** Investment property or principal place of residence. Defaults to investment when omitted. */
+  propertyType: z.enum(PROPERTY_TYPES).default("INVESTMENT"),
   purchaseDate: z.coerce.date().optional().nullable(),
   purchasePrice: z.coerce.number().optional().nullable(),
   currentEstimatedValue: z.coerce.number().optional().nullable(),

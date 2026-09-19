@@ -10,7 +10,15 @@ import { LinkedTransactions } from "../components/LinkedTransactions";
 import { RentalSchedule } from "../components/RentalSchedule";
 import { PropertyBills } from "../components/PropertyBills";
 import { PropertyUpcomingPayments } from "../components/PropertyUpcomingPayments";
+import { PropertyTypeBadge } from "../components/PropertyTypeBadge";
+import { PROPERTY_TYPE_INFO, propertyTypeOf } from "../lib/propertyType";
 import { formatCurrency, formatDate } from "../lib/format";
+
+// Costs that typically come with owning the home you live in.
+const PPR_QUICK_ADD = {
+  INCOME: [] as string[],
+  EXPENSE: ["Council Rates", "Water Rates", "Insurance", "Repairs & Maintenance", "Mortgage Interest", "Body Corporate", "Strata"],
+};
 
 const TABS = [
   { id: "summary", label: "Summary" },
@@ -57,6 +65,8 @@ export default function PropertyDetailPage() {
   if (loading || !summary) return <p className="text-[var(--color-ink-soft)]">Loading…</p>;
 
   const { property } = summary;
+  const type = propertyTypeOf(property);
+  const isPpr = type === "PPR";
 
   function handleEntriesChanged() {
     setVersion((v) => v + 1);
@@ -66,7 +76,12 @@ export default function PropertyDetailPage() {
   return (
     <div>
       <SectionHeading
-        title={property.name}
+        title={
+          <span className="flex flex-wrap items-center gap-3">
+            {property.name}
+            <PropertyTypeBadge type={type} full />
+          </span>
+        }
         subtitle={property.address ?? undefined}
         action={
           <div className="flex gap-2">
@@ -84,39 +99,57 @@ export default function PropertyDetailPage() {
 
       {tab === "summary" && (
         <TabPanel id="summary">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatTile label="Rental income" value={formatCurrency(summary.rentalIncome)} tone="positive" />
-            <StatTile label="Expenses" value={formatCurrency(summary.expenses)} tone="negative" />
-            <StatTile
-              label="Net rental income"
-              value={formatCurrency(summary.netRentalIncome)}
-              tone={summary.netRentalIncome >= 0 ? "positive" : "negative"}
-              help="Rent received minus property expenses."
-            />
-            <StatTile label="Annualised rental income" value={formatCurrency(summary.annualisedRentalIncome)} tone="neutral" help="Estimated full-year rent based on the current rate." />
-          </div>
+          {isPpr ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <StatTile label="Running costs this year" value={formatCurrency(summary.expenses)} tone="negative" />
+              <StatTile label="Estimated value" value={property.currentEstimatedValue != null ? formatCurrency(property.currentEstimatedValue) : "Not recorded"} tone="neutral" />
+              <StatTile label="Loan balance" value={property.loanBalance != null ? formatCurrency(property.loanBalance) : "Not recorded"} tone="neutral" />
+              <StatTile
+                label="Estimated equity"
+                value={summary.estimatedEquity != null ? formatCurrency(summary.estimatedEquity) : "Not enough information"}
+                tone="positive"
+                help="Estimated value minus loan balance."
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <StatTile label="Rental income" value={formatCurrency(summary.rentalIncome)} tone="positive" />
+              <StatTile label="Expenses" value={formatCurrency(summary.expenses)} tone="negative" />
+              <StatTile
+                label="Net rental income"
+                value={formatCurrency(summary.netRentalIncome)}
+                tone={summary.netRentalIncome >= 0 ? "positive" : "negative"}
+                help="Rent received minus property expenses."
+              />
+              <StatTile label="Annualised rental income" value={formatCurrency(summary.annualisedRentalIncome)} tone="neutral" help="Estimated full-year rent based on the current rate." />
+            </div>
+          )}
 
           <div className="grid md:grid-cols-2 gap-6">
             <Card>
               <h3 className="font-display font-semibold mb-3">
-                <HelpText term="Rental Yield">
-                  <span>Property details</span>
-                </HelpText>
+                {isPpr ? (
+                  "Property details"
+                ) : (
+                  <HelpText term="Rental Yield">
+                    <span>Property details</span>
+                  </HelpText>
+                )}
               </h3>
               <dl className="space-y-2 text-sm">
                 <Row label="Estimated value" value={property.currentEstimatedValue != null ? formatCurrency(property.currentEstimatedValue) : "Not recorded"} />
                 <Row label="Loan balance" value={property.loanBalance != null ? formatCurrency(property.loanBalance) : "Not recorded"} />
                 <Row label="Estimated equity" value={summary.estimatedEquity != null ? formatCurrency(summary.estimatedEquity) : "Not enough information"} />
-                <Row label="Rental yield" value={summary.rentalYield != null ? `${summary.rentalYield.toFixed(1)}%` : "Not enough information"} />
+                {!isPpr && <Row label="Rental yield" value={summary.rentalYield != null ? `${summary.rentalYield.toFixed(1)}%` : "Not enough information"} />}
                 <Row label="Purchase date" value={property.purchaseDate ? formatDate(property.purchaseDate) : "Not recorded"} />
-                <Row label="Rental agent" value={property.rentalAgent || "Not recorded"} />
-                <Row label="Tenant" value={property.tenantName || "Not recorded"} />
+                {!isPpr && <Row label="Rental agent" value={property.rentalAgent || "Not recorded"} />}
+                {!isPpr && <Row label="Tenant" value={property.tenantName || "Not recorded"} />}
               </dl>
               <p className="text-xs text-[var(--color-ink-soft)] mt-3">Estimated value, equity and yield are calculated from figures you enter — treat them as estimates, not valuations.</p>
             </Card>
 
             <Card>
-              <h3 className="font-display font-semibold mb-3">Major expenses this financial year</h3>
+              <h3 className="font-display font-semibold mb-3">{isPpr ? "Biggest running costs this financial year" : "Major expenses this financial year"}</h3>
               {summary.majorExpenses.length === 0 ? (
                 <p className="text-sm text-[var(--color-ink-soft)]">
                   No expenses recorded yet for this financial year. Add them on the{" "}
@@ -142,15 +175,35 @@ export default function PropertyDetailPage() {
 
       {tab === "income-expense" && (
         <TabPanel id="income-expense">
-          <RentalSchedule propertyId={property.id} propertyName={property.name} financialYearId={financialYearId} reloadToken={version} onChanged={handleEntriesChanged} />
-          <LinkedTransactions
-            scope={{ kind: "property", id: property.id, name: property.name }}
-            financialYearId={financialYearId}
-            title="All entries"
-            showQuickAdd={false}
-            reloadToken={version}
-            onChanged={handleEntriesChanged}
-          />
+          {isPpr ? (
+            <>
+              <p className={`text-sm rounded-xl px-4 py-3 text-[#264a5c] ${PROPERTY_TYPE_INFO.PPR.badge}`}>
+                This is your principal place of residence, so there's no rental schedule. Record running costs like rates, insurance and maintenance here — they're kept separate from your rental figures.
+              </p>
+              <LinkedTransactions
+                scope={{ kind: "property", id: property.id, name: property.name }}
+                financialYearId={financialYearId}
+                title="Running costs"
+                quickAdd={PPR_QUICK_ADD}
+                allowIncome={false}
+                emptyMessage="Nothing recorded yet for this financial year. Add rates, insurance, maintenance or loan interest using the buttons above."
+                reloadToken={version}
+                onChanged={handleEntriesChanged}
+              />
+            </>
+          ) : (
+            <>
+              <RentalSchedule propertyId={property.id} propertyName={property.name} financialYearId={financialYearId} reloadToken={version} onChanged={handleEntriesChanged} />
+              <LinkedTransactions
+                scope={{ kind: "property", id: property.id, name: property.name }}
+                financialYearId={financialYearId}
+                title="All entries"
+                showQuickAdd={false}
+                reloadToken={version}
+                onChanged={handleEntriesChanged}
+              />
+            </>
+          )}
         </TabPanel>
       )}
 

@@ -165,6 +165,7 @@ model Property {
   household              Household @relation(fields: [householdId], references: [id])
   name                   String
   address                String?
+  propertyType           String   @default("INVESTMENT") // INVESTMENT | PPR (principal place of residence)
   purchaseDate           DateTime?
   purchasePrice          Float?
   currentEstimatedValue  Float?

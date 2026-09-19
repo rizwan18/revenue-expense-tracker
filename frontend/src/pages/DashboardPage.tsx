@@ -5,6 +5,8 @@ import { api } from "../api/client";
 import type { DashboardResponse } from "../api/types";
 import { Card, SectionHeading, StatTile, Alert, Button, HelpText } from "../components/ui";
 import { formatCurrency, formatCurrencySigned, formatDateShort, daysUntil } from "../lib/format";
+import { PropertyTypeBadge, PropertyTypeLegend } from "../components/PropertyTypeBadge";
+import { PROPERTY_TYPE_INFO, propertyTypeOf } from "../lib/propertyType";
 
 export default function DashboardPage() {
   const { financialYearId } = useFinancialYear();
@@ -92,7 +94,7 @@ export default function DashboardPage() {
         <section>
           <SectionHeading title="Investment snapshot" />
           <Card className="space-y-3">
-            <Row label="Property value" value={formatCurrency(data.investmentSnapshot.propertyValue)} />
+            <Row label="Investment property value" value={formatCurrency(data.investmentSnapshot.propertyValue)} />
             <Row label="Share / ETF portfolio value" value={formatCurrency(data.investmentSnapshot.shareValue)} />
             <Row label="Other investment value" value={formatCurrency(data.investmentSnapshot.otherValue)} />
             <div className="border-t border-[var(--color-line)] pt-3">
@@ -114,7 +116,34 @@ export default function DashboardPage() {
         <section>
           <SectionHeading title="Property snapshot" />
           <Card className="space-y-3">
-            <Row label="Number of properties" value={String(data.propertySnapshot.numberOfProperties)} />
+            {data.properties.length > 0 && (
+              <>
+                <ul className="space-y-2">
+                  {data.properties.map((p) => {
+                    const type = propertyTypeOf(p);
+                    return (
+                      <li key={p.id}>
+                        <Link
+                          to={`/properties/${p.id}`}
+                          className={`flex items-center justify-between gap-3 rounded-xl border border-[var(--color-line)] px-3 py-2 hover:bg-[var(--color-paper-dim)] ${PROPERTY_TYPE_INFO[type].accent}`}
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-[var(--color-ink)] truncate">{p.name}</p>
+                            <PropertyTypeBadge type={type} />
+                          </div>
+                          {p.currentEstimatedValue != null && <span className="text-sm font-medium shrink-0">{formatCurrency(p.currentEstimatedValue)}</span>}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <PropertyTypeLegend />
+                <div className="border-t border-[var(--color-line)] pt-3 space-y-3">
+                  <Row label="Properties" value={`${data.propertySnapshot.investmentCount} investment · ${data.propertySnapshot.pprCount} PPR`} />
+                </div>
+              </>
+            )}
+            {data.properties.length === 0 && <Row label="Number of properties" value="0" />}
             <Row label="Total rental income" value={formatCurrency(data.propertySnapshot.totalRentalIncome)} />
             <Row label="Total property expenses" value={formatCurrency(data.propertySnapshot.totalPropertyExpenses)} />
             <div className="border-t border-[var(--color-line)] pt-3">
@@ -128,14 +157,16 @@ export default function DashboardPage() {
                 bold
               />
             </div>
+            <p className="text-xs text-[var(--color-ink-soft)]">Rental figures cover investment properties only.</p>
             <Row
               label={
                 <HelpText term="Estimated Equity">
-                  <span>Estimated equity</span>
+                  <span>Estimated equity (investment)</span>
                 </HelpText>
               }
               value={formatCurrency(data.propertySnapshot.estimatedEquity)}
             />
+            {data.propertySnapshot.pprCount > 0 && <Row label="Home equity (PPR)" value={formatCurrency(data.propertySnapshot.ppr.equity)} />}
           </Card>
         </section>
       </div>

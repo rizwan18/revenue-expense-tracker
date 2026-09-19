@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma";
 import { getFinancialYearId } from "../lib/financialYear";
+import { groupPropertyTotals, type PropertyGroupTotals } from "../lib/propertyTypes";
 
 /**
  * All calculations are scoped to a householdId and a financial year id
@@ -33,11 +34,12 @@ export async function netIncome(householdId: string, financialYear: string): Pro
 }
 
 export async function propertyIncome(householdId: string, financialYear: string): Promise<number> {
-  return sumTransactions(householdId, financialYear, "INCOME", { propertyId: { not: null } });
+  // Rental figures only cover investment properties — costs of your own home (PPR) aren't rental expenses.
+  return sumTransactions(householdId, financialYear, "INCOME", { property: { propertyType: "INVESTMENT" } });
 }
 
 export async function propertyExpenses(householdId: string, financialYear: string): Promise<number> {
-  return sumTransactions(householdId, financialYear, "EXPENSE", { propertyId: { not: null } });
+  return sumTransactions(householdId, financialYear, "EXPENSE", { property: { propertyType: "INVESTMENT" } });
 }
 
 export async function netRentalIncome(householdId: string, financialYear: string): Promise<number> {
@@ -155,7 +157,8 @@ export async function totalRealisedCapitalGains(householdId: string, financialYe
 }
 
 export async function portfolioValue(householdId: string): Promise<{ properties: number; shares: number; other: number; total: number }> {
-  const properties = await prisma.property.findMany({ where: { householdId } });
+  // Only investment properties belong in the investment portfolio (your own home is shown separately).
+  const properties = await prisma.property.findMany({ where: { householdId, propertyType: "INVESTMENT" } });
   const propertiesValue = properties.reduce((sum: number, p: (typeof properties)[number]) => sum + (p.currentEstimatedValue ?? 0), 0);
 
   const investments = await prisma.investment.findMany({
@@ -217,4 +220,13 @@ export async function overdueBills(householdId: string) {
 
 export async function propertyCount(householdId: string): Promise<number> {
   return prisma.property.count({ where: { householdId } });
+}
+
+/** Value, loan and equity split by property type. */
+export async function propertyBreakdown(householdId: string): Promise<{ investment: PropertyGroupTotals; ppr: PropertyGroupTotals }> {
+  const properties = await prisma.property.findMany({
+    where: { householdId },
+    select: { propertyType: true, currentEstimatedValue: true, loanBalance: true },
+  });
+  return groupPropertyTotals(properties);
 }

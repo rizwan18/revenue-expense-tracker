@@ -5,6 +5,7 @@ import { asyncHandler, FriendlyError } from "../middleware/errorHandler";
 import { propertySchema, scheduleLineSchema, scheduleDetailsSchema, financialYearIdSchema } from "../lib/validation";
 import { getCurrentFinancialYear } from "../lib/financialYear";
 import { DEFAULT_RENTAL_SCHEDULE_LINES } from "../lib/constants";
+import { findConflictingPpr, pprConflictMessage } from "../lib/propertyTypes";
 import { buildRentalSchedule, type ScheduleDirection, type ScheduleLineDef, type ScheduleTotalsRow } from "../services/rentalSchedule";
 
 const router = Router();
@@ -13,6 +14,19 @@ router.use(requireAuth);
 function householdOf(req: AuthedRequest): string {
   if (!req.householdId) throw new FriendlyError("Please finish setting up your household first.", 400);
   return req.householdId;
+}
+
+/**
+ * Business rule: a person can only have one principal place of residence (PPR).
+ * Throws a friendly 409 if the signed-in person already owns a different PPR.
+ */
+async function assertNoOtherPpr(req: AuthedRequest, householdId: string, propertyId?: string) {
+  const owned = await prisma.property.findMany({
+    where: { householdId, owners: { some: { userId: req.userId! } } },
+    select: { id: true, name: true, propertyType: true },
+  });
+  const conflict = findConflictingPpr(owned, propertyId);
+  if (conflict) throw new FriendlyError(pprConflictMessage(conflict.name), 409);
 }
 
 function annualisedRent(rentAmount: number | null, rentFrequency: string | null): number {
@@ -43,6 +57,7 @@ router.post(
   asyncHandler(async (req: AuthedRequest, res) => {
     const householdId = householdOf(req);
     const data = propertySchema.parse(req.body);
+    if (data.propertyType === "PPR") await assertNoOtherPpr(req, householdId);
     const property = await prisma.property.create({
       data: {
         householdId,
@@ -72,6 +87,7 @@ router.put(
     const existing = await prisma.property.findFirst({ where: { id: req.params.id, householdId } });
     if (!existing) throw new FriendlyError("We couldn't find this property.", 404);
     const data = propertySchema.partial().parse(req.body);
+    if (data.propertyType === "PPR" && existing.propertyType !== "PPR") await assertNoOtherPpr(req, householdId, existing.id);
     const property = await prisma.property.update({ where: { id: existing.id }, data });
     res.json(property);
   })
@@ -238,7 +254,7 @@ router.get(
 router.put(
   "/:id/schedule/details",
   asyncHandler(async (req: AuthedRequest, res) => {
-    const { property } = await findOwnedProperty(req);
+    const { householdId, property } = await findOwnedProperty(req);
     const data = scheduleDetailsSchema.parse(req.body);
 
     if (data.weeksRented !== undefined) {
@@ -249,6 +265,10 @@ router.put(
       });
     }
     if (data.ownershipPercentage !== undefined) {
+      // Taking a share in someone else's PPR would give this person a second one.
+      if (property.propertyType === "PPR" && !property.owners.some((o: { userId: string }) => o.userId === req.userId)) {
+        await assertNoOtherPpr(req, householdId, property.id);
+      }
       await prisma.propertyOwnership.upsert({
         where: { propertyId_userId: { propertyId: property.id, userId: req.userId! } },
         create: { propertyId: property.id, userId: req.userId!, percentage: data.ownershipPercentage },

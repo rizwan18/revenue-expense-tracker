@@ -68,7 +68,8 @@ router.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     const householdId = householdOf(req);
     const fy = resolveFy(req);
-    const properties = await prisma.property.findMany({ where: { householdId } });
+    // Rental report: investment properties only (a principal place of residence has no rental income).
+    const properties = await prisma.property.findMany({ where: { householdId, propertyType: "INVESTMENT" } });
     const rows = await Promise.all(
       properties.map(async (p: { id: string; name: string }) => {
         const [incomeAgg, expenseAgg] = await Promise.all([

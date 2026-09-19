@@ -41,7 +41,18 @@ export interface DashboardResponse {
     netRentalIncome: number;
     loanBalance: number;
     estimatedEquity: number;
+    investmentCount: number;
+    pprCount: number;
+    ppr: { count: number; value: number; loanBalance: number; equity: number };
   };
+  properties: Array<{
+    id: string;
+    name: string;
+    address: string | null;
+    propertyType: "INVESTMENT" | "PPR";
+    currentEstimatedValue: number | null;
+    loanBalance: number | null;
+  }>;
   upcomingPayments: Array<{ id: string; name: string; amount: number; dueDate: string; property: string | null }>;
   alerts: Array<{ id: string; message: string; severity: "info" | "warning" }>;
   recentActivity: Array<{ id: string; description: string; amount: number; date: string; category: string | null }>;
@@ -84,6 +95,9 @@ export interface Property {
   id: string;
   name: string;
   address: string | null;
+  /** INVESTMENT (default for older records) or PPR (principal place of residence). */
+  propertyType?: "INVESTMENT" | "PPR";
+  owners?: Array<{ userId: string; percentage: number }>;
   purchaseDate: string | null;
   purchasePrice: number | null;
   currentEstimatedValue: number | null;

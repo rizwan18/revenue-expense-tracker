@@ -26,7 +26,7 @@ router.get(
       invIncome,
       capitalGains,
       portfolio,
-      loanBalance,
+      propertyTotals,
       upcoming,
       overdue,
       propCount,
@@ -40,7 +40,7 @@ router.get(
       calc.investmentIncome(householdId, fy.id),
       calc.totalRealisedCapitalGains(householdId, fy.id),
       calc.portfolioValue(householdId),
-      calc.totalLoanBalance(householdId),
+      calc.propertyBreakdown(householdId),
       calc.upcomingBills(householdId, 30, 10),
       calc.overdueBills(householdId),
       calc.propertyCount(householdId),
@@ -50,6 +50,12 @@ router.get(
         take: 8,
       }),
     ]);
+
+    const propertyList = await prisma.property.findMany({
+      where: { householdId },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true, address: true, propertyType: true, currentEstimatedValue: true, loanBalance: true },
+    });
 
     const recentTransactions = await prisma.transaction.findMany({
       where: { householdId },
@@ -99,9 +105,14 @@ router.get(
         totalRentalIncome: propIncome,
         totalPropertyExpenses: propExpenses,
         netRentalIncome: propIncome - propExpenses,
-        loanBalance,
-        estimatedEquity: portfolio.properties - loanBalance,
+        // Investment properties only (your own home is reported separately below).
+        loanBalance: propertyTotals.investment.loanBalance,
+        estimatedEquity: propertyTotals.investment.equity,
+        investmentCount: propertyTotals.investment.count,
+        pprCount: propertyTotals.ppr.count,
+        ppr: propertyTotals.ppr,
       },
+      properties: propertyList,
       upcomingPayments: upcoming.map((b: { id: string; name: string; amount: number; nextDueDate: Date; property: { name: string } | null }) => ({
         id: b.id,
         name: b.name,
