@@ -45,7 +45,7 @@ export function PropertyBills({ propertyId }: { propertyId: string }) {
   return (
     <section>
       <SectionHeading
-        title="Bills & reminders"
+        title="Bills"
         subtitle="Regular costs for this property, with due-date reminders."
         action={
           <Button size="sm" onClick={() => setShowForm(true)}>
@@ -79,7 +79,7 @@ export function PropertyBills({ propertyId }: { propertyId: string }) {
           </ul>
         )}
         <div className="px-5 py-3 bg-[var(--color-paper-dim)] text-xs text-[var(--color-ink-soft)]">
-          "Mark paid" moves the reminder to the next due date. To record the cost, add it as an expense above.{" "}
+          "Mark paid" moves the reminder to the next due date. To record the cost, add it as an expense on the Income/Expense tab.{" "}
           <Link to="/bills" className="text-[var(--color-sky)] hover:underline">
             See all bills
           </Link>

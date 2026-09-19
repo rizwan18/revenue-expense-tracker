@@ -5,6 +5,7 @@ import { asyncHandler, FriendlyError } from "../middleware/errorHandler";
 import { transactionSchema } from "../lib/validation";
 import { getFinancialYearId } from "../lib/financialYear";
 import { LIKELY_DEDUCTIBLE_EXPENSE_CATEGORIES } from "../lib/constants";
+import { syncExpenseReminder } from "../lib/expenseReminders";
 
 const router = Router();
 router.use(requireAuth);
@@ -80,6 +81,8 @@ router.post(
         financialYear,
       },
     });
+    // Expenses dated in the future also show up under Reminders.
+    await syncExpenseReminder(transaction);
     res.status(201).json(transaction);
   })
 );
@@ -98,6 +101,7 @@ router.put(
       where: { id: existing.id },
       data: { ...data, ...(financialYear ? { financialYear } : {}) },
     });
+    await syncExpenseReminder(updated);
     res.json(updated);
   })
 );

@@ -1,25 +1,41 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useFinancialYear } from "../context/FinancialYearContext";
 import { api } from "../api/client";
 import type { PropertySummary } from "../api/types";
-import { Button, Card, SectionHeading, StatTile, HelpText } from "../components/ui";
+import { Button, Card, SectionHeading, StatTile, HelpText, Tabs, TabPanel } from "../components/ui";
 import { Modal } from "../components/Modal";
 import { PropertyForm } from "../components/PropertyForm";
 import { LinkedTransactions } from "../components/LinkedTransactions";
 import { RentalSchedule } from "../components/RentalSchedule";
 import { PropertyBills } from "../components/PropertyBills";
+import { PropertyUpcomingPayments } from "../components/PropertyUpcomingPayments";
 import { formatCurrency, formatDate } from "../lib/format";
+
+const TABS = [
+  { id: "summary", label: "Summary" },
+  { id: "income-expense", label: "Income/Expense" },
+  { id: "bills-reminders", label: "Bills & reminders" },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
 
 export default function PropertyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { financialYearId } = useFinancialYear();
   const [summary, setSummary] = useState<PropertySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
   // Bumped whenever an entry is added/changed so the schedule and the entries list stay in step.
   const [version, setVersion] = useState(0);
+
+  // The chosen tab lives in the URL (?tab=…) so it survives a refresh and can be linked to.
+  const requestedTab = searchParams.get("tab");
+  const tab: TabId = TABS.some((t) => t.id === requestedTab) ? (requestedTab as TabId) : "summary";
+  function selectTab(next: TabId) {
+    setSearchParams(next === "summary" ? {} : { tab: next }, { replace: true });
+  }
 
   // Refreshes the summary tiles without blanking the page (used after adding/editing entries).
   const refreshSummary = useCallback(() => {
@@ -42,8 +58,13 @@ export default function PropertyDetailPage() {
 
   const { property } = summary;
 
+  function handleEntriesChanged() {
+    setVersion((v) => v + 1);
+    refreshSummary();
+  }
+
   return (
-    <div className="space-y-6">
+    <div>
       <SectionHeading
         title={property.name}
         subtitle={property.address ?? undefined}
@@ -59,78 +80,86 @@ export default function PropertyDetailPage() {
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatTile label="Rental income" value={formatCurrency(summary.rentalIncome)} tone="positive" />
-        <StatTile label="Expenses" value={formatCurrency(summary.expenses)} tone="negative" />
-        <StatTile
-          label="Net rental income"
-          value={formatCurrency(summary.netRentalIncome)}
-          tone={summary.netRentalIncome >= 0 ? "positive" : "negative"}
-          help="Rent received minus property expenses."
-        />
-        <StatTile label="Annualised rental income" value={formatCurrency(summary.annualisedRentalIncome)} tone="neutral" help="Estimated full-year rent based on the current rate." />
-      </div>
+      <Tabs tabs={[...TABS]} active={tab} onChange={selectTab} />
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <h3 className="font-display font-semibold mb-3">
-            <HelpText term="Rental Yield">
-              <span>Property details</span>
-            </HelpText>
-          </h3>
-          <dl className="space-y-2 text-sm">
-            <Row label="Estimated value" value={property.currentEstimatedValue != null ? formatCurrency(property.currentEstimatedValue) : "Not recorded"} />
-            <Row label="Loan balance" value={property.loanBalance != null ? formatCurrency(property.loanBalance) : "Not recorded"} />
-            <Row label="Estimated equity" value={summary.estimatedEquity != null ? formatCurrency(summary.estimatedEquity) : "Not enough information"} />
-            <Row label="Rental yield" value={summary.rentalYield != null ? `${summary.rentalYield.toFixed(1)}%` : "Not enough information"} />
-            <Row label="Purchase date" value={property.purchaseDate ? formatDate(property.purchaseDate) : "Not recorded"} />
-            <Row label="Rental agent" value={property.rentalAgent || "Not recorded"} />
-            <Row label="Tenant" value={property.tenantName || "Not recorded"} />
-          </dl>
-          <p className="text-xs text-[var(--color-ink-soft)] mt-3">Estimated value, equity and yield are calculated from figures you enter — treat them as estimates, not valuations.</p>
-        </Card>
+      {tab === "summary" && (
+        <TabPanel id="summary">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatTile label="Rental income" value={formatCurrency(summary.rentalIncome)} tone="positive" />
+            <StatTile label="Expenses" value={formatCurrency(summary.expenses)} tone="negative" />
+            <StatTile
+              label="Net rental income"
+              value={formatCurrency(summary.netRentalIncome)}
+              tone={summary.netRentalIncome >= 0 ? "positive" : "negative"}
+              help="Rent received minus property expenses."
+            />
+            <StatTile label="Annualised rental income" value={formatCurrency(summary.annualisedRentalIncome)} tone="neutral" help="Estimated full-year rent based on the current rate." />
+          </div>
 
-        <Card>
-          <h3 className="font-display font-semibold mb-3">Major expenses this financial year</h3>
-          {summary.majorExpenses.length === 0 ? (
-            <p className="text-sm text-[var(--color-ink-soft)]">No expenses recorded yet for this financial year.</p>
-          ) : (
-            <ul className="space-y-2">
-              {summary.majorExpenses.map((e) => (
-                <li key={e.category} className="flex justify-between text-sm">
-                  <span className="text-[var(--color-ink-soft)]">{e.category}</span>
-                  <span className="font-medium">{formatCurrency(e.amount)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      </div>
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card>
+              <h3 className="font-display font-semibold mb-3">
+                <HelpText term="Rental Yield">
+                  <span>Property details</span>
+                </HelpText>
+              </h3>
+              <dl className="space-y-2 text-sm">
+                <Row label="Estimated value" value={property.currentEstimatedValue != null ? formatCurrency(property.currentEstimatedValue) : "Not recorded"} />
+                <Row label="Loan balance" value={property.loanBalance != null ? formatCurrency(property.loanBalance) : "Not recorded"} />
+                <Row label="Estimated equity" value={summary.estimatedEquity != null ? formatCurrency(summary.estimatedEquity) : "Not enough information"} />
+                <Row label="Rental yield" value={summary.rentalYield != null ? `${summary.rentalYield.toFixed(1)}%` : "Not enough information"} />
+                <Row label="Purchase date" value={property.purchaseDate ? formatDate(property.purchaseDate) : "Not recorded"} />
+                <Row label="Rental agent" value={property.rentalAgent || "Not recorded"} />
+                <Row label="Tenant" value={property.tenantName || "Not recorded"} />
+              </dl>
+              <p className="text-xs text-[var(--color-ink-soft)] mt-3">Estimated value, equity and yield are calculated from figures you enter — treat them as estimates, not valuations.</p>
+            </Card>
 
-      <RentalSchedule
-        propertyId={property.id}
-        propertyName={property.name}
-        financialYearId={financialYearId}
-        reloadToken={version}
-        onChanged={() => {
-          setVersion((v) => v + 1);
-          refreshSummary();
-        }}
-      />
+            <Card>
+              <h3 className="font-display font-semibold mb-3">Major expenses this financial year</h3>
+              {summary.majorExpenses.length === 0 ? (
+                <p className="text-sm text-[var(--color-ink-soft)]">
+                  No expenses recorded yet for this financial year. Add them on the{" "}
+                  <button onClick={() => selectTab("income-expense")} className="text-[var(--color-sky)] hover:underline">
+                    Income/Expense
+                  </button>{" "}
+                  tab.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {summary.majorExpenses.map((e) => (
+                    <li key={e.category} className="flex justify-between text-sm">
+                      <span className="text-[var(--color-ink-soft)]">{e.category}</span>
+                      <span className="font-medium">{formatCurrency(e.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+        </TabPanel>
+      )}
 
-      <LinkedTransactions
-        scope={{ kind: "property", id: property.id, name: property.name }}
-        financialYearId={financialYearId}
-        title="All entries"
-        showQuickAdd={false}
-        reloadToken={version}
-        onChanged={() => {
-          setVersion((v) => v + 1);
-          refreshSummary();
-        }}
-      />
+      {tab === "income-expense" && (
+        <TabPanel id="income-expense">
+          <RentalSchedule propertyId={property.id} propertyName={property.name} financialYearId={financialYearId} reloadToken={version} onChanged={handleEntriesChanged} />
+          <LinkedTransactions
+            scope={{ kind: "property", id: property.id, name: property.name }}
+            financialYearId={financialYearId}
+            title="All entries"
+            showQuickAdd={false}
+            reloadToken={version}
+            onChanged={handleEntriesChanged}
+          />
+        </TabPanel>
+      )}
 
-      <PropertyBills propertyId={property.id} />
+      {tab === "bills-reminders" && (
+        <TabPanel id="bills-reminders">
+          <PropertyBills propertyId={property.id} />
+          <PropertyUpcomingPayments propertyId={property.id} />
+        </TabPanel>
+      )}
 
       {showEdit && (
         <Modal title="Edit property" onClose={() => setShowEdit(false)}>

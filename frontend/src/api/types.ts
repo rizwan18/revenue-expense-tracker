@@ -171,6 +171,16 @@ export interface Reminder {
   daysBefore: number;
   status: "PENDING" | "SNOOZED" | "COMPLETE" | "DISABLED";
   bill?: { id: string; name: string; property?: { name: string } | null } | null;
+  /** Set when the reminder was created from an expense dated in the future. */
+  transaction?: {
+    id: string;
+    description: string;
+    amount: number;
+    date: string;
+    propertyId: string | null;
+    property?: { id: string; name: string } | null;
+    category?: { id: string; name: string } | null;
+  } | null;
 }
 
 export interface CapitalGainDisposal {

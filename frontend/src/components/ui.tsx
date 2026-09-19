@@ -142,3 +142,37 @@ export function Field({ label, htmlFor, children, hint }: { label: string; htmlF
 
 export const inputClass =
   "w-full rounded-xl border border-[var(--color-line)] bg-white px-3 py-2.5 text-[15px] text-[var(--color-ink)] focus:border-[var(--color-eucalyptus)] focus:ring-1 focus:ring-[var(--color-eucalyptus)]";
+
+/** Accessible tab strip. Pair each tab with a <TabPanel> that has the same id. */
+export function Tabs<T extends string>({ tabs, active, onChange }: { tabs: Array<{ id: T; label: string }>; active: T; onChange: (id: T) => void }) {
+  return (
+    <div role="tablist" className="flex gap-1 border-b border-[var(--color-line)] overflow-x-auto">
+      {tabs.map((t) => {
+        const selected = t.id === active;
+        return (
+          <button
+            key={t.id}
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={selected}
+            aria-controls={`panel-${t.id}`}
+            onClick={() => onChange(t.id)}
+            className={`px-4 py-3 text-[15px] font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${
+              selected ? "border-[var(--color-eucalyptus)] text-[var(--color-eucalyptus-dark)]" : "border-transparent text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
+            }`}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function TabPanel({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <div role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} className="space-y-6 pt-6">
+      {children}
+    </div>
+  );
+}

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "../api/client";
 import type { Reminder } from "../api/types";
 import { Card, EmptyState, SectionHeading, Button } from "../components/ui";
-import { formatDate, daysUntil } from "../lib/format";
+import { formatCurrency, formatDate, daysUntil } from "../lib/format";
 
 export default function RemindersPage() {
   const [reminders, setReminders] = useState<Reminder[]>([]);
@@ -33,7 +33,7 @@ export default function RemindersPage() {
 
   return (
     <div className="space-y-6">
-      <SectionHeading title="Reminders" subtitle="Reminders are created automatically from your bills and expected dividends." />
+      <SectionHeading title="Reminders" subtitle="Reminders are created automatically from your bills, expected dividends and any expenses dated in the future." />
 
       {loading ? (
         <p className="text-[var(--color-ink-soft)]">Loading…</p>
@@ -51,6 +51,8 @@ export default function RemindersPage() {
                     <p className="text-xs text-[var(--color-ink-soft)]">
                       {days <= 0 ? "Due today" : days === 1 ? "Due tomorrow" : `Due in ${days} days`} · {formatDate(r.dueDate)}
                       {r.status === "SNOOZED" ? " · Snoozed" : ""}
+                      {r.transaction ? ` · ${formatCurrency(r.transaction.amount)}` : ""}
+                      {r.transaction?.property ? ` · ${r.transaction.property.name}` : ""}
                     </p>
                   </div>
                   <div className="flex gap-2 shrink-0">

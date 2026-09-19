@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth, AuthedRequest } from "../middleware/requireAuth";
 import { asyncHandler, FriendlyError } from "../middleware/errorHandler";
+import { backfillExpenseReminders } from "../lib/expenseReminders";
 
 const router = Router();
 router.use(requireAuth);
@@ -16,10 +17,15 @@ router.get(
   asyncHandler(async (req: AuthedRequest, res) => {
     const householdId = householdOf(req);
     const { status } = req.query as Record<string, string>;
+    // Pick up any forward-dated expenses that don't have a reminder yet.
+    await backfillExpenseReminders(householdId);
     const reminders = await prisma.reminder.findMany({
       where: { householdId, status: status ? status : { not: "DISABLED" } },
       orderBy: { dueDate: "asc" },
-      include: { bill: { include: { property: true } } },
+      include: {
+        bill: { include: { property: true } },
+        transaction: { include: { property: true, category: true } },
+      },
     });
     res.json(reminders);
   })
