@@ -4,14 +4,44 @@ import type { Category, Account, Property, Investment, Transaction } from "../ap
 import { Button, Field, inputClass } from "./ui";
 import { toInputDate } from "../lib/format";
 
-export function TransactionForm({ initial, onSaved, onCancel }: { initial?: Transaction; onSaved: () => void; onCancel: () => void }) {
-  const [direction, setDirection] = useState<"INCOME" | "EXPENSE">(initial?.direction ?? "EXPENSE");
-  const [date, setDate] = useState(toInputDate(initial?.date) || toInputDate(new Date()));
-  const [description, setDescription] = useState(initial?.description ?? "");
+export interface TransactionFormDefaults {
+  direction?: "INCOME" | "EXPENSE";
+  /** Pre-select the category with this name (matched against the chosen direction). */
+  categoryName?: string;
+  /** Pre-select this exact category (takes precedence over categoryName). */
+  categoryId?: string;
+  description?: string;
+  /** yyyy-mm-dd */
+  date?: string;
+  propertyId?: string;
+  investmentId?: string;
+}
+
+export function TransactionForm({
+  initial,
+  defaults,
+  suggestedCategories,
+  linkedTo,
+  onSaved,
+  onCancel,
+}: {
+  initial?: Transaction;
+  /** Starting values for a new transaction (ignored when editing). */
+  defaults?: TransactionFormDefaults;
+  /** Category names to list first, under a "Suggested" heading. */
+  suggestedCategories?: string[];
+  /** When set, the transaction is tied to a property/investment and the pickers are hidden. */
+  linkedTo?: { kind: "property" | "investment"; name: string };
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [direction, setDirection] = useState<"INCOME" | "EXPENSE">(initial?.direction ?? defaults?.direction ?? "EXPENSE");
+  const [date, setDate] = useState(toInputDate(initial?.date) || defaults?.date || toInputDate(new Date()));
+  const [description, setDescription] = useState(initial?.description ?? defaults?.description ?? "");
   const [amount, setAmount] = useState(initial ? String(initial.amount) : "");
-  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? "");
-  const [propertyId, setPropertyId] = useState(initial?.propertyId ?? "");
-  const [investmentId, setInvestmentId] = useState(initial?.investmentId ?? "");
+  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? defaults?.categoryId ?? "");
+  const [propertyId, setPropertyId] = useState(initial?.propertyId ?? defaults?.propertyId ?? "");
+  const [investmentId, setInvestmentId] = useState(initial?.investmentId ?? defaults?.investmentId ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [isRecurring, setIsRecurring] = useState(initial?.isRecurring ?? false);
 
@@ -30,6 +60,24 @@ export function TransactionForm({ initial, onSaved, onCancel }: { initial?: Tran
   }, []);
 
   const filteredCategories = categories.filter((c) => c.direction === direction);
+
+  // Pre-select the requested category (e.g. "Council Rates") once the list has loaded.
+  useEffect(() => {
+    if (initial || !defaults?.categoryName || categoryId) return;
+    const match = categories.find((c) => c.name === defaults.categoryName && c.direction === direction);
+    if (match) setCategoryId(match.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories]);
+
+  function changeDirection(d: "INCOME" | "EXPENSE") {
+    setDirection(d);
+    // A category only makes sense for one direction, so clear it if it no longer fits.
+    const current = categories.find((c) => c.id === categoryId);
+    if (current && current.direction !== d) setCategoryId("");
+  }
+
+  const suggested = suggestedCategories ? filteredCategories.filter((c) => suggestedCategories.includes(c.name)) : [];
+  const otherCategories = filteredCategories.filter((c) => !suggested.includes(c));
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -72,7 +120,7 @@ export function TransactionForm({ initial, onSaved, onCancel }: { initial?: Tran
           <button
             key={d}
             type="button"
-            onClick={() => setDirection(d)}
+            onClick={() => changeDirection(d)}
             className={`flex-1 rounded-lg py-2 text-sm font-medium transition-colors ${
               direction === d ? (d === "INCOME" ? "bg-[var(--color-eucalyptus-tint)] text-[var(--color-eucalyptus-dark)]" : "bg-[var(--color-brick-tint)] text-[var(--color-brick)]") : "text-[var(--color-ink-soft)]"
             }`}
@@ -98,15 +146,34 @@ export function TransactionForm({ initial, onSaved, onCancel }: { initial?: Tran
       <Field label="Category" htmlFor="tx-category">
         <select id="tx-category" className={inputClass} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
           <option value="">No category</option>
-          {filteredCategories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
+          {suggested.length > 0 && (
+            <optgroup label="Suggested">
+              {suggested.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {suggested.length > 0 ? (
+            <optgroup label="All categories">
+              {otherCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </optgroup>
+          ) : (
+            otherCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))
+          )}
         </select>
       </Field>
 
-      {properties.length > 0 && (
+      {!linkedTo && properties.length > 0 && (
         <Field label="Property (optional)" htmlFor="tx-property">
           <select id="tx-property" className={inputClass} value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
             <option value="">Not property-related</option>
@@ -119,7 +186,7 @@ export function TransactionForm({ initial, onSaved, onCancel }: { initial?: Tran
         </Field>
       )}
 
-      {investments.length > 0 && (
+      {!linkedTo && investments.length > 0 && (
         <Field label="Investment (optional)" htmlFor="tx-investment">
           <select id="tx-investment" className={inputClass} value={investmentId} onChange={(e) => setInvestmentId(e.target.value)}>
             <option value="">Not investment-related</option>
@@ -130,6 +197,12 @@ export function TransactionForm({ initial, onSaved, onCancel }: { initial?: Tran
             ))}
           </select>
         </Field>
+      )}
+
+      {linkedTo && (
+        <p className="text-sm text-[var(--color-ink-soft)] bg-[var(--color-paper-dim)] rounded-lg px-3 py-2">
+          This will be recorded against the {linkedTo.kind} <span className="font-medium text-[var(--color-ink)]">{linkedTo.name}</span>.
+        </p>
       )}
 
       <Field label="Notes (optional)" htmlFor="tx-notes">

@@ -110,8 +110,9 @@ model Category {
   household   Household? @relation(fields: [householdId], references: [id])
   createdAt   DateTime @default(now())
 
-  transactions Transaction[]
-  bills        Bill[]
+  transactions  Transaction[]
+  bills         Bill[]
+  scheduleLines PropertyScheduleLine[]
 
   @@index([householdId])
 }
@@ -173,14 +174,18 @@ model Property {
   rentAmount             Float?
   rentFrequency          String?  // WEEKLY | FORTNIGHTLY | MONTHLY
   rentalStartDate        DateTime?
+  availableForRentDate   DateTime? // date the property was first genuinely available for rent
+  scheduleInitialised    Boolean  @default(false) // default rental-schedule lines have been added
   notes                  String?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  owners       PropertyOwnership[]
-  transactions Transaction[]
-  bills        Bill[]
-  documents    Document[]
+  owners        PropertyOwnership[]
+  transactions  Transaction[]
+  bills         Bill[]
+  documents     Document[]
+  scheduleLines PropertyScheduleLine[]
+  yearDetails   PropertyYearDetail[]
 
   @@index([householdId])
 }
@@ -188,12 +193,44 @@ model Property {
 model PropertyOwnership {
   id         String @id @default(cuid())
   propertyId String
-  property   Property @relation(fields: [propertyId], references: [id])
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   userId     String
   user       User     @relation(fields: [userId], references: [id])
   percentage Float    // 0-100
 
   @@unique([propertyId, userId])
+}
+
+/// One row of a property's rental income & expenses schedule. Each line points
+/// at a category, so transactions recorded against the property in that
+/// category roll up into the line. The list is configurable per property:
+/// lines can be added or removed at any time (removing a line never deletes
+/// transactions).
+model PropertyScheduleLine {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  label      String?  // display name; falls back to the category name
+  isManual   Boolean  @default(false) // amount is worked out elsewhere (e.g. depreciation schedule) and entered by hand
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@unique([propertyId, categoryId])
+  @@index([propertyId])
+}
+
+/// Per-financial-year rental facts for a property.
+model PropertyYearDetail {
+  id            String   @id @default(cuid())
+  propertyId    String
+  property      Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  financialYear String   // e.g. "2026-27"
+  weeksRented   Int?
+  updatedAt     DateTime @updatedAt
+
+  @@unique([propertyId, financialYear])
 }
 
 // ---------------------------------------------------------------------------

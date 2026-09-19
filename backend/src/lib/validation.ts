@@ -115,3 +115,26 @@ export const capitalGainSchema = z.object({
   ownershipPercentage: z.coerce.number().min(0).max(100).optional(),
   notes: z.string().optional().nullable(),
 });
+
+export const financialYearIdSchema = z.string().regex(/^\d{4}-\d{2}$/, "Use a financial year like 2026-27.");
+
+export const scheduleLineSchema = z
+  .object({
+    /** Use an existing category… */
+    categoryId: z.string().min(1).optional(),
+    /** …or create a new one by name (direction required). */
+    name: z.string().trim().min(1, "Please give this line a name.").max(80).optional(),
+    direction: z.enum(TRANSACTION_DIRECTIONS).optional(),
+    label: z.string().trim().max(80).optional().nullable(),
+    isManual: z.boolean().optional(),
+  })
+  .refine((v) => !!v.categoryId || (!!v.name && !!v.direction), {
+    message: "Choose an existing category, or give the new line a name and type.",
+  });
+
+export const scheduleDetailsSchema = z.object({
+  financialYear: financialYearIdSchema,
+  weeksRented: z.coerce.number().int().min(0).max(52).nullable().optional(),
+  ownershipPercentage: z.coerce.number().min(0).max(100).optional(),
+  availableForRentDate: z.coerce.date().nullable().optional(),
+});

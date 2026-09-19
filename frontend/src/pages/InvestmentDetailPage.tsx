@@ -6,11 +6,14 @@ import { Button, Card, SectionHeading, StatTile, HelpText } from "../components/
 import { Modal } from "../components/Modal";
 import { InvestmentTransactionForm } from "../components/InvestmentTransactionForm";
 import { DividendForm } from "../components/DividendForm";
+import { LinkedTransactions } from "../components/LinkedTransactions";
+import { useFinancialYear } from "../context/FinancialYearContext";
 import { formatCurrency, formatCurrencySigned, formatDate } from "../lib/format";
 
 export default function InvestmentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { financialYearId } = useFinancialYear();
   const [investment, setInvestment] = useState<Investment | null>(null);
   const [loading, setLoading] = useState(true);
   const [showTxForm, setShowTxForm] = useState(false);
@@ -138,6 +141,8 @@ export default function InvestmentDetailPage() {
           </Card>
         </section>
       </div>
+
+      <LinkedTransactions scope={{ kind: "investment", id: investment.id, name: investment.name }} financialYearId={financialYearId} />
 
       {showTxForm && (
         <Modal title="Add a buy/sell transaction" onClose={() => setShowTxForm(false)}>

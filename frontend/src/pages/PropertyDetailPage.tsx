@@ -6,6 +6,9 @@ import type { PropertySummary } from "../api/types";
 import { Button, Card, SectionHeading, StatTile, HelpText } from "../components/ui";
 import { Modal } from "../components/Modal";
 import { PropertyForm } from "../components/PropertyForm";
+import { LinkedTransactions } from "../components/LinkedTransactions";
+import { RentalSchedule } from "../components/RentalSchedule";
+import { PropertyBills } from "../components/PropertyBills";
 import { formatCurrency, formatDate } from "../lib/format";
 
 export default function PropertyDetailPage() {
@@ -15,17 +18,19 @@ export default function PropertyDetailPage() {
   const [summary, setSummary] = useState<PropertySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEdit, setShowEdit] = useState(false);
+  // Bumped whenever an entry is added/changed so the schedule and the entries list stay in step.
+  const [version, setVersion] = useState(0);
 
-  const load = useCallback(() => {
-    if (!id) return;
-    setLoading(true);
-    api
-      .get<PropertySummary>(`/properties/${id}/summary?financialYear=${financialYearId}`)
-      .then(setSummary)
-      .finally(() => setLoading(false));
+  // Refreshes the summary tiles without blanking the page (used after adding/editing entries).
+  const refreshSummary = useCallback(() => {
+    if (!id) return Promise.resolve();
+    return api.get<PropertySummary>(`/properties/${id}/summary?financialYear=${financialYearId}`).then(setSummary);
   }, [id, financialYearId]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    setLoading(true);
+    refreshSummary().finally(() => setLoading(false));
+  }, [refreshSummary]);
 
   async function handleDelete() {
     if (!id || !confirm("Remove this property? Its transactions will remain but lose their property link.")) return;
@@ -102,6 +107,31 @@ export default function PropertyDetailPage() {
         </Card>
       </div>
 
+      <RentalSchedule
+        propertyId={property.id}
+        propertyName={property.name}
+        financialYearId={financialYearId}
+        reloadToken={version}
+        onChanged={() => {
+          setVersion((v) => v + 1);
+          refreshSummary();
+        }}
+      />
+
+      <LinkedTransactions
+        scope={{ kind: "property", id: property.id, name: property.name }}
+        financialYearId={financialYearId}
+        title="All entries"
+        showQuickAdd={false}
+        reloadToken={version}
+        onChanged={() => {
+          setVersion((v) => v + 1);
+          refreshSummary();
+        }}
+      />
+
+      <PropertyBills propertyId={property.id} />
+
       {showEdit && (
         <Modal title="Edit property" onClose={() => setShowEdit(false)}>
           <PropertyForm
@@ -109,7 +139,7 @@ export default function PropertyDetailPage() {
             onCancel={() => setShowEdit(false)}
             onSaved={() => {
               setShowEdit(false);
-              load();
+              refreshSummary();
             }}
           />
         </Modal>

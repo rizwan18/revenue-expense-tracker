@@ -27,3 +27,25 @@ export function daysUntil(dateInput: string | Date): number {
   const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
   return Math.ceil((date.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
+
+/** Always two decimals — used where columns of dollar amounts need to line up (e.g. the rental schedule). */
+export function formatMoney(amount: number): string {
+  return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+}
+
+/** First and last day of an Australian financial year id like "2026-27" (as yyyy-mm-dd). */
+export function financialYearBounds(financialYearId: string): { start: string; end: string } {
+  const startYear = Number(financialYearId.slice(0, 4));
+  return { start: `${startYear}-07-01`, end: `${startYear + 1}-06-30` };
+}
+
+/**
+ * A sensible default date for a new entry: today if it falls inside the chosen
+ * financial year, otherwise the last day of that year — so the entry lands in
+ * the year the person is looking at instead of silently moving to another one.
+ */
+export function defaultEntryDate(financialYearId: string): string {
+  const today = toInputDate(new Date());
+  const { start, end } = financialYearBounds(financialYearId);
+  return today >= start && today <= end ? today : end;
+}

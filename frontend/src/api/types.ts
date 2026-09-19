@@ -94,6 +94,7 @@ export interface Property {
   rentAmount: number | null;
   rentFrequency: string | null;
   rentalStartDate: string | null;
+  availableForRentDate?: string | null;
   notes: string | null;
 }
 
@@ -190,4 +191,27 @@ export interface CapitalGainDisposal {
   eligibleForDiscountInformationalOnly: boolean | null;
   notes: string | null;
   hasDocuments: boolean;
+}
+
+export interface ScheduleLine {
+  /** null for categories that hold entries but aren't on the property's list. */
+  lineId: string | null;
+  categoryId: string | null;
+  name: string;
+  isManual: boolean;
+  amount: number;
+  entryCount: number;
+  listed: boolean;
+}
+
+export interface RentalScheduleResponse {
+  property: { id: string; name: string };
+  financialYear: string;
+  details: { ownershipPercentage: number; availableForRentDate: string | null; weeksRented: number | null };
+  income: { lines: ScheduleLine[]; total: number };
+  expenses: { lines: ScheduleLine[]; total: number };
+  netRent: number;
+  ownershipPercentage: number;
+  yourShare: number;
+  availableCategories: Array<{ id: string; name: string; direction: "INCOME" | "EXPENSE" }>;
 }

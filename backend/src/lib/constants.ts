@@ -48,7 +48,34 @@ export const LIKELY_DEDUCTIBLE_EXPENSE_CATEGORIES = new Set([
   "Body Corporate",
   "Accounting",
   "Legal",
+  "Capital Allowances",
+  "Capital Works",
 ]);
+
+/**
+ * Lines every property's rental schedule starts with. Each maps to a category
+ * (created for the household if it doesn't exist yet). Users can add or remove
+ * lines per property at any time. "Manual" lines are amounts worked out
+ * elsewhere (e.g. a quantity surveyor's depreciation schedule) and entered by hand.
+ */
+export const DEFAULT_RENTAL_SCHEDULE_LINES: ReadonlyArray<{
+  direction: "INCOME" | "EXPENSE";
+  categoryName: string;
+  label: string;
+  isManual?: boolean;
+}> = [
+  { direction: "INCOME", categoryName: "Rental Income", label: "Rental income" },
+  { direction: "EXPENSE", categoryName: "Council Rates", label: "Council rates" },
+  { direction: "EXPENSE", categoryName: "Capital Allowances", label: "Capital allowances", isManual: true },
+  { direction: "EXPENSE", categoryName: "Insurance", label: "Insurance" },
+  { direction: "EXPENSE", categoryName: "Mortgage Interest", label: "Interest on loans" },
+  { direction: "EXPENSE", categoryName: "Land Tax", label: "Land tax" },
+  { direction: "EXPENSE", categoryName: "Property Management", label: "Agent fees" },
+  { direction: "EXPENSE", categoryName: "Capital Works", label: "Capital works", isManual: true },
+  { direction: "EXPENSE", categoryName: "Water Rates", label: "Water charges" },
+  { direction: "EXPENSE", categoryName: "Repairs & Maintenance", label: "Repairs and maintenance" },
+  { direction: "EXPENSE", categoryName: "Body Corporate", label: "Body corporate" },
+];
 
 export const TRANSACTION_DIRECTIONS = ["INCOME", "EXPENSE"] as const;
 export type TransactionDirection = (typeof TRANSACTION_DIRECTIONS)[number];

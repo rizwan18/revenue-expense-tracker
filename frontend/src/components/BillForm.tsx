@@ -16,13 +16,13 @@ const FREQUENCY_OPTIONS = [
 
 const REMINDER_OPTIONS = [1, 3, 7, 14, 30];
 
-export function BillForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
+export function BillForm({ onSaved, onCancel, defaultPropertyId }: { onSaved: () => void; onCancel: () => void; defaultPropertyId?: string }) {
   const [name, setName] = useState("");
   const [provider, setProvider] = useState("");
   const [amount, setAmount] = useState("");
   const [frequency, setFrequency] = useState("MONTHLY");
   const [nextDueDate, setNextDueDate] = useState(toInputDate(new Date()));
-  const [propertyId, setPropertyId] = useState("");
+  const [propertyId, setPropertyId] = useState(defaultPropertyId ?? "");
   const [reminderDaysBefore, setReminderDaysBefore] = useState(7);
   const [autoRenew, setAutoRenew] = useState(false);
   const [properties, setProperties] = useState<Property[]>([]);
@@ -86,7 +86,7 @@ export function BillForm({ onSaved, onCancel }: { onSaved: () => void; onCancel:
       <Field label="Next due date" htmlFor="bill-due">
         <input id="bill-due" type="date" required className={inputClass} value={nextDueDate} onChange={(e) => setNextDueDate(e.target.value)} />
       </Field>
-      {properties.length > 0 && (
+      {!defaultPropertyId && properties.length > 0 && (
         <Field label="Property (optional)" htmlFor="bill-property">
           <select id="bill-property" className={inputClass} value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
             <option value="">Not property-related</option>
