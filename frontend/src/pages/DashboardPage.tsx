@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useFinancialYear } from "../context/FinancialYearContext";
 import { api } from "../api/client";
@@ -6,6 +6,7 @@ import type { DashboardResponse } from "../api/types";
 import { Card, SectionHeading, StatTile, Alert, Button, HelpText } from "../components/ui";
 import { formatCurrency, formatCurrencySigned, formatDateShort, daysUntil } from "../lib/format";
 import { PropertyTypeBadge, PropertyTypeLegend } from "../components/PropertyTypeBadge";
+import { DataBackupCard } from "../components/DataBackupCard";
 import { PROPERTY_TYPE_INFO, propertyTypeOf } from "../lib/propertyType";
 
 export default function DashboardPage() {
@@ -13,10 +14,14 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // After an import the numbers are refreshed in place, without flashing the loading skeleton.
+  const [reloadKey, setReloadKey] = useState(0);
+  const silentReload = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    if (!silentReload.current) setLoading(true);
+    silentReload.current = false;
     api
       .get<DashboardResponse>(`/dashboard?financialYear=${financialYearId}`)
       .then((res) => !cancelled && setData(res))
@@ -25,7 +30,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [financialYearId]);
+  }, [financialYearId, reloadKey]);
 
   if (loading) return <DashboardSkeleton />;
   if (error || !data) return <Alert severity="warning" message={error ?? "No data available."} />;
@@ -224,6 +229,17 @@ export default function DashboardPage() {
           </Card>
         </section>
       </div>
+
+      {/* Backup & restore */}
+      <section>
+        <SectionHeading title="Your data" subtitle="Download everything you've entered, or bring it back from a saved file at any time." />
+        <DataBackupCard
+          onImported={() => {
+            silentReload.current = true;
+            setReloadKey((k) => k + 1);
+          }}
+        />
+      </section>
     </div>
   );
 }

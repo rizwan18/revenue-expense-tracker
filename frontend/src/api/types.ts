@@ -239,3 +239,24 @@ export interface RentalScheduleResponse {
   yourShare: number;
   availableCategories: Array<{ id: string; name: string; direction: "INCOME" | "EXPENSE" }>;
 }
+
+export interface ImportSectionSummary {
+  key: string;
+  label: string;
+  inFile: number;
+  toAdd: number;
+  alreadyThere: number;
+  skipped: number;
+}
+
+export interface ImportResult {
+  dryRun: boolean;
+  sections: ImportSectionSummary[];
+  warnings: string[];
+  errors: string[];
+  warningCount: number;
+  errorCount: number;
+  profile: { fullName?: string; timezone?: string; easyViewEnabled?: boolean; householdName?: string } | null;
+  /** Rows actually written (only for a real import). */
+  added: Record<string, number> | null;
+}

@@ -14,6 +14,7 @@ import dashboardRoutes from "./routes/dashboard";
 import reportRoutes from "./routes/reports";
 import searchRoutes from "./routes/search";
 import documentRoutes from "./routes/documents";
+import dataRoutes from "./routes/data";
 import { errorHandler } from "./middleware/errorHandler";
 
 export function createApp() {
@@ -44,6 +45,7 @@ export function createApp() {
   app.use("/api/reports", reportRoutes);
   app.use("/api/search", searchRoutes);
   app.use("/api/documents", documentRoutes);
+  app.use("/api/data", dataRoutes);
 
   // 404 for unknown API routes, before the generic error handler.
   app.use("/api", (_req, res) => res.status(404).json({ error: "We couldn't find what you were looking for." }));
