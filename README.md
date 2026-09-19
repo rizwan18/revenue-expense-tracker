@@ -151,9 +151,11 @@ Vercel's serverless functions can't use SQLite (no persistent local disk), so pr
 2. Copy the **pooled** connection string (via PgBouncer) → this is `DATABASE_URL`.
 3. Copy the **unpooled/direct** connection string → this is `DIRECT_URL` (used only for creating tables / migrations).
 
-### 2. Create the tables (once)
+### 2. Create the tables
 
-From your own machine (Vercel's build step doesn't touch the database):
+**Automatic:** every *production* build on Vercel runs `prisma db push` (via `npm run db:sync`) as long as `DIRECT_URL` is set, so the tables are created/updated on deploy. Prisma refuses destructive changes without `--accept-data-loss`, so a risky schema change fails the build instead of dropping data.
+
+**Manual alternative**, from your own machine:
 
 ```
 cd backend
